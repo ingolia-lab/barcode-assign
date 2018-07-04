@@ -1,6 +1,6 @@
 [package]
 name = "barcode-assign"
-version = "1.0"
+version = "1.0.0"
 authors = ["Nick Ingolia <ingolia@berkeley.edu>"]
 
 [dependencies]
@@ -13,10 +13,6 @@ clap = "*"
 
 [profile.dev]
 opt-level = 3
-
-[lib]
-name = "cyh2lib"
-path = "src/lib.rs"
 
 [[bin]]
 name = "bc-seqs"

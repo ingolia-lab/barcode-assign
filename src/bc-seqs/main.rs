@@ -1,16 +1,14 @@
 extern crate bio;
 extern crate clap;
-extern crate cyh2lib;
 
 use std::fs::File;
 use std::io::{Write};
 use std::collections::HashMap;
-//use std::string;
-
-use clap::{Arg, App};
 
 use bio::io::fastq;
-use cyh2lib::fastq_pair;
+use clap::{Arg, App};
+
+mod fastq_pair;
 
 #[derive(Debug)]
 struct Config {
