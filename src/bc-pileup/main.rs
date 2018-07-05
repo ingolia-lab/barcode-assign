@@ -109,6 +109,18 @@ fn main() {
              .help("Ending coordinate of required coverage (0-based, inclusive)")
              .takes_value(true)
              .required(true))
+        .arg(Arg::with_name("exonstart")
+             .long("exon-start")
+             .value_name("START")
+             .help("Starting coordinate of exon sequence (0-based)")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("upstream")
+             .long("upstream-sequence")
+             .value_name("SEQUENCE")
+             .help("Nucleotide sequence upstream of exon start")
+             .takes_value(true)
+             .default_value(""))
         .get_matches();
 
     let config = Config {
@@ -118,8 +130,8 @@ fn main() {
         outdir: PathBuf::from(matches.value_of("outdir").unwrap()),
         reqstart: value_t!(matches.value_of("reqstart"), usize).unwrap_or_else(|e| e.exit()),
         reqend: value_t!(matches.value_of("reqend"), usize).unwrap_or_else(|e| e.exit()),
-        exon_start: 1145,
-        exon_upstream: "ATGCCTTCCAGATTCACTAAGACTAGAAAGCACAGAGGTCACGTCTCAG".as_bytes().to_vec(),
+        exon_start: value_t!(matches.value_of("exonstart"), usize).unwrap_or_else(|e| e.exit()),
+        exon_upstream: matches.value_of("upstream").unwrap().as_bytes().to_vec(),
         mutstart: 1032,
         mutend: 1706,
         refreverse: false,
