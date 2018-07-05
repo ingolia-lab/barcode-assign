@@ -2,6 +2,7 @@ use std::default::Default;
 use std::iter::{Enumerate,repeat};
 use std::slice::Iter;
 
+/// A vector that can start at an index other than `0`.
 #[derive(Debug,Clone)]
 pub struct OffsetVector<T> {
     start: usize,
@@ -9,6 +10,8 @@ pub struct OffsetVector<T> {
 }
 
 impl<T> OffsetVector<T> {
+    /// Creates an offset vector from a standard `Vec<T>` with a
+    /// specified starting point.
     pub fn new(start: usize, vec: Vec<T>) -> Self {
         OffsetVector { start: start, vec: vec }
     }

@@ -18,7 +18,7 @@ use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
 use aln_pos::{Aln,AlnCons,AlnPos,AlnPosCons};
-use cov_stats::{Cover,CoverClass,CoverStats};
+use cov_stats::{Cover,CoverClass,CoverStats,ReadStartStats};
 use mutn::{PeptMutn,NtMutn,MutnBarcodes};
 use trl::{CodonTable,STD_CODONS};
 
@@ -183,7 +183,8 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
     let mut mutn_barcodes = MutnBarcodes::new();
     
     let mut cov_stats = CoverStats::new(0, refseq.len(), 10);
-
+    let mut read_start_stats = ReadStartStats::new(refseq.len());
+    
     let mut bam_reader = bam::Reader::from_path(&config.bowtie_bam)?;
     let header = bam::Header::from_template(bam_reader.header());
     let header_view = bam::HeaderView::from_header(&header);
@@ -211,6 +212,8 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
             .collect::<Vec<bam::Record>>();
         qvec.sort_by_key(|r| (r.tid(), r.pos()));
         
+        read_start_stats.add_read_group(qvec.iter());
+
         {
             let mut tmpout = bam::Writer::from_path(&config.tmpfile, &header)?;
             for r in qvec {
@@ -286,6 +289,9 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
             }
         }
     }
+
+    let mut read_start_out = fs::File::create(config.outfile("read-starts.txt"))?;
+    write!(read_start_out, "{}", read_start_stats.table())?;
 
     let mut cov_out = fs::File::create(config.outfile("coverage.txt"))?;
     write!(cov_out, "{}", cov_stats.table())?;

@@ -1,5 +1,9 @@
+use std::cmp::min;
+use std::collections::HashSet;
 use std::fmt::{self,Display,Formatter};
 use std::iter::repeat;
+
+use rust_htslib::bam;
 
 use aln_pos::{AlnPos,AlnPosCons};
 use offset_vector::{OffsetVector};
@@ -64,6 +68,62 @@ impl Cover {
         } else {
             CoverClass::Good
         }
+    }
+}
+
+/// Statistics on how many (distinct, non-singleton) barcodes have a
+/// read starting at a certain position. When multiple reads for a
+/// single barcode have the same read start position, this is counted
+/// just once.
+pub struct ReadStartStats {
+    starts: Vec<u32>,
+    nom_cover: Vec<u32>,
+}
+
+impl ReadStartStats {
+    /// Creates a new read start tabulator for a sequence of a
+    /// specified length.
+    pub fn new(len: usize) -> Self {
+        ReadStartStats{
+            starts: vec![0; len],
+            nom_cover: vec![0; len],
+        }
+    }
+
+    /// Increment read start counts for all distinct starts in the
+    /// collection of `rust_htslib::bam::Record` objects.
+    pub fn add_read_group<'a, I>(&mut self, record_iter: I)
+        where I: Iterator<Item=&'a bam::Record>
+    {
+        let mut seen = HashSet::new();
+        
+        for r in record_iter {
+            let pos = r.pos() as usize;
+            if !seen.contains(&pos) && (pos < self.starts.len()) {
+                self.starts[pos] += 1;
+                for i in pos..min(pos + r.seq().len() - 1, self.nom_cover.len() - 1) {
+                    self.nom_cover[i] += 1;
+                }
+                seen.insert(pos);
+            }
+        }
+    }
+
+    /// Returns a tab-delimited table of read starts counted at each
+    /// position.
+    pub fn table(&self) -> String {
+        let mut buf = String::new();
+
+        for (pos, nstart) in self.starts.iter().enumerate() {
+            buf.push_str(&pos.to_string());
+            buf.push('\t');
+            buf.push_str(&nstart.to_string());
+            buf.push('\t');
+            buf.push_str(&self.nom_cover[pos].to_string());
+            buf.push('\n');
+        }
+        
+        buf
     }
 }
 
