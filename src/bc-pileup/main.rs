@@ -1,7 +1,8 @@
+extern crate bio;
+#[macro_use]
+extern crate clap;
 #[macro_use]
 extern crate error_chain;
-
-extern crate bio;
 extern crate rust_htslib;
 
 use std::fs;
@@ -12,7 +13,7 @@ use std::rc::Rc;
 use std::str;
 
 use bio::io::fasta;
-
+use clap::{Arg, App};
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
@@ -49,7 +50,7 @@ struct Config {
     ref_fa: PathBuf,
     bowtie_bam: PathBuf,
     tmpfile: PathBuf,
-    outbase: PathBuf,
+    outdir: PathBuf,
     reqstart: usize,
     reqend: usize,
     exon_start: usize,
@@ -66,22 +67,57 @@ impl Config {
     pub fn outfile<T>(&self, filename: T) -> PathBuf 
         where T: std::convert::AsRef<std::path::Path>
     {
-        self.outbase.join(filename)
+        self.outdir.join(filename)
     }
 }
 
 fn main() {
-    let testing = false;
-    let ref_fa = if testing { "../CYH2_re_ligase.fa" } else { "/mnt/ingolialab/ingolia/Cyh2/CYH2_re_ligase.fa" };
-    let bam_path = if testing { "../test/" } else { "/mnt/ingolialab/ingolia/Cyh2/" };
-    
+    let matches = App::new("bc-seqs")
+        .version("1.0")
+        .author("Nick Ingolia <ingolia@berkeley.edu>")
+        .about("Assemble aligned sequences into consensus genotype per barcode")
+        .arg(Arg::with_name("bambyname")
+             .short("b")
+             .long("bam-by-name")
+             .value_name("SORTED-BY-NAME-BAM")
+             .help("BAM format alignment sorted by name")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("referencefa")
+             .short("r")
+             .long("reference")
+             .value_name("REFERENCE-FA")
+             .help("Fasta format reference sequence")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("outdir")
+             .short("o")
+             .long("outdir")
+             .value_name("OUTDIR")
+             .help("Output directory")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("reqstart")
+             .long("req-start")
+             .value_name("START")
+             .help("Starting coordinate of required coverage (0-based)")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("reqend")
+             .long("req-end")
+             .value_name("END")
+             .help("Ending coordinate of required coverage (0-based, inclusive)")
+             .takes_value(true)
+             .required(true))
+        .get_matches();
+
     let config = Config {
-        ref_fa: PathBuf::from(ref_fa),
-        bowtie_bam: PathBuf::from(bam_path).join("171009-bowtie.bam"),
-        tmpfile: PathBuf::from(bam_path).join("171009-bowtie-group.bam"),
-        outbase: PathBuf::from(bam_path).join("171009_barcoding/"),
-        reqstart: 1096,
-        reqend: 1545,
+        ref_fa: PathBuf::from(matches.value_of("referencefa").unwrap()),
+        bowtie_bam: PathBuf::from(matches.value_of("bambyname").unwrap()),
+        tmpfile: PathBuf::from(matches.value_of("outdir").unwrap()).join("barcode-group.bam"),
+        outdir: PathBuf::from(matches.value_of("outdir").unwrap()),
+        reqstart: value_t!(matches.value_of("reqstart"), usize).unwrap_or_else(|e| e.exit()),
+        reqend: value_t!(matches.value_of("reqend"), usize).unwrap_or_else(|e| e.exit()),
         exon_start: 1145,
         exon_upstream: "ATGCCTTCCAGATTCACTAAGACTAGAAAGCACAGAGGTCACGTCTCAG".as_bytes().to_vec(),
         mutstart: 1032,
@@ -108,6 +144,7 @@ fn main() {
 }
 
 fn run(config: &Config) -> Result<()> {
+    std::fs::create_dir(&config.outdir)?;
     let refrec = read_reference(&config.ref_fa)?;
     pileup_targets(config, &refrec)
 }

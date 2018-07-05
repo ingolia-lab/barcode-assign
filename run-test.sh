@@ -27,3 +27,5 @@ cutadapt -a "${READ1_CONSTANT}" \
 
 ./target/debug/bc-align --reference "${REFERENCE}" --barcoded-fastq "${DATADIR}/${NAME}_barcoded.fq" --outbase "${DATADIR}/${NAME}"
 
+./target/debug/bc-pileup --reference "${REFERENCE}" --bam-by-name "${DATADIR}/${NAME}.bam" \
+		     --req-start 1096 --req-end 1545 --outdir "${DATADIR}/${NAME}_barcodes"
