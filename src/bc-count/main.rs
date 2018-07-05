@@ -1,20 +1,21 @@
+extern crate bio;
+extern crate clap;
+
 #[macro_use]
 extern crate error_chain;
 
-extern crate bio;
-
 use std::fs::File;
-use std::io::{self,Write};
+use std::io::{self,Read,Write};
 use std::collections::HashMap;
-use std::env;
-use std::path::{Path,PathBuf};
+
 use bio::io::fastq;
+use clap::{Arg, App};
 
 #[derive(Debug)]
 struct Config {
-    barcode_fastq: PathBuf,
-    out_barcodes: PathBuf,
-    freq_filename: Option<PathBuf>,
+    barcode_fastq: String,
+    out_barcodes: String,
+    freq_filename: Option<String>,
 }
 
 mod errors {
@@ -30,11 +31,29 @@ mod errors {
 use errors::*;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let matches = App::new("bc-count")
+        .version("1.0")
+        .author("Nick Ingolia <ingolia@berkeley.edu>")
+        .about("Count barcode sequences")
+        .arg(Arg::with_name("fastq")
+             .short("f")
+             .long("fastq")
+             .value_name("BARCODE-FQ")
+             .help("FastQ file of barcode sequences")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("output")
+             .short("o")
+             .long("output")
+             .value_name("OUTPUT-TXT")
+             .help("Tab-delimited text file of barcode counts")
+             .takes_value(true)
+             .required(true))
+        .get_matches();
 
     let config = Config {
-        barcode_fastq: PathBuf::from(&args[1]),
-        out_barcodes: PathBuf::from(&args[2]),
+        barcode_fastq: matches.value_of("fastq").unwrap().to_string(),
+        out_barcodes: matches.value_of("output").unwrap().to_string(),
         freq_filename: None,
     };
 
@@ -45,11 +64,16 @@ fn main() {
 }
 
 fn run(config: Config) -> Result<()> {
-    let barcode_reader = fastq::Reader::from_file(&config.barcode_fastq)?;
+    let reader: Box<Read> = if config.barcode_fastq == "-" {
+        Box::new(io::stdin())
+    } else {
+        Box::new(File::open(&config.barcode_fastq)?)
+    };
+    let barcode_reader = fastq::Reader::new(reader);
 
     let mut barcode_counts = HashMap::new();
 
-    let mut records = barcode_reader.records();
+    let records = barcode_reader.records();
 
     for result in records {
         let barcode_record = result?;
@@ -59,8 +83,12 @@ fn run(config: Config) -> Result<()> {
         *barcode_count += 1;
     }
 
-    let mut barcode_writer = File::create(config.out_barcodes)?;
-    write_barcode_table(barcode_writer, &barcode_counts)?;
+    let writer: Box<Write> = if config.out_barcodes == "-" {
+        Box::new(io::stdout())
+    } else {
+        Box::new(File::create(&config.out_barcodes)?)
+    };
+    write_barcode_table(writer, &barcode_counts)?;
 
     if let Some(freq_filename) = config.freq_filename {
         let mut freq_writer = File::create(freq_filename)?;
