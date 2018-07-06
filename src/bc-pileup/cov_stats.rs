@@ -92,21 +92,30 @@ impl ReadStartStats {
 
     /// Increment read start counts for all distinct starts in the
     /// collection of `rust_htslib::bam::Record` objects.
-    pub fn add_read_group<'a, I>(&mut self, record_iter: I)
+    pub fn add_read_group<'a, I>(&mut self, record_iter: I) -> (u32, u32)
         where I: Iterator<Item=&'a bam::Record>
     {
         let mut seen = HashSet::new();
+        let mut nomcov = vec![0; self.nom_cover.len()];
         
         for r in record_iter {
             let pos = r.pos() as usize;
             if !seen.contains(&pos) && (pos < self.starts.len()) {
                 self.starts[pos] += 1;
-                for i in pos..min(pos + r.seq().len() - 1, self.nom_cover.len() - 1) {
-                    self.nom_cover[i] += 1;
+                for i in pos..min(pos + r.seq().len() - 1, nomcov.len() - 1) {
+                    nomcov[i] = 1;
                 }
                 seen.insert(pos);
             }
         }
+
+        let mut nnomcov = 0;
+        for i in 0..(nomcov.len()-1) {
+            nnomcov += nomcov[i];
+            self.nom_cover[i] += nomcov[i];
+        }
+
+        (seen.len() as u32, nnomcov)
     }
 
     /// Returns a tab-delimited table of read starts counted at each
@@ -168,7 +177,7 @@ struct CoverAt {
 }
 
 impl CoverAt {
-    fn new(max: usize) -> Self { CoverAt { cover: vec![0; (max + 1)] } }
+    fn new(max: usize) -> Self { CoverAt { cover: vec![0; max+1] } }
 
     fn _max(&self) -> usize { self.cover.len() }
 
