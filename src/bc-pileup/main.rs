@@ -132,8 +132,16 @@ fn main() {
         reqend: value_t!(matches.value_of("reqend"), usize).unwrap_or_else(|e| e.exit()),
         exon_start: value_t!(matches.value_of("exonstart"), usize).unwrap_or_else(|e| e.exit()),
         exon_upstream: matches.value_of("upstream").unwrap().as_bytes().to_vec(),
-        mutstart: 1032,
-        mutend: 1706,
+        mutstart: if matches.is_present("mutstart") {
+            value_t!(matches.value_of("mutstart"), usize).unwrap_or_else(|e| e.exit()) 
+        } else {
+            value_t!(matches.value_of("reqstart"), usize).unwrap_or_else(|e| e.exit()) 
+        },
+        mutend: if matches.is_present("mutend") {
+            value_t!(matches.value_of("mutend"), usize).unwrap_or_else(|e| e.exit()) 
+        } else {
+            value_t!(matches.value_of("reqend"), usize).unwrap_or_else(|e| e.exit()) 
+        },
         refreverse: false,
         min_qual: 30,
         max_none: 2,
@@ -223,10 +231,10 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
         };
         
         let mut tmp_reader = bam::Reader::from_path(&config.tmpfile)?;
-        let aln = Aln::new_aln(config.reqstart, config.reqend, refseq, tmp_reader.pileup())?;
+        let aln = Aln::new_aln(config.mutstart, config.mutend, refseq, tmp_reader.pileup())?;
         let aln_cons = aln.map_to(AlnPosCons::new);
         
-        let cover = Cover::new(aln_cons.iter());
+        let cover = Cover::new(aln_cons.pos_iter(), config.reqstart, config.reqend);
         let cover_class = cover.classify(config.max_none, config.max_heterog);
 
         write!(class_out, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", 
