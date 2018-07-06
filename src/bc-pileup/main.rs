@@ -212,7 +212,8 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
             .collect::<Vec<bam::Record>>();
         qvec.sort_by_key(|r| (r.tid(), r.pos()));
         
-        read_start_stats.add_read_group(qvec.iter());
+        let nread = qvec.len();
+        let (nstart, nomcov) = read_start_stats.add_read_group(qvec.iter());
 
         {
             let mut tmpout = bam::Writer::from_path(&config.tmpfile, &header)?;
@@ -228,8 +229,8 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
         let cover = Cover::new(aln_cons.iter());
         let cover_class = cover.classify(config.max_none, config.max_heterog);
 
-        write!(class_out, "{}\t{}\t{}\t{}\t{}\t{}\n", 
-               bc_str, cover.wildtype() + cover.mutant(), cover.mutant(), cover.heterog(), cover.none(), cover_class)?;
+        write!(class_out, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", 
+               bc_str, nread, nstart, nomcov, cover.wildtype() + cover.mutant(), cover.mutant(), cover.heterog(), cover.none(), cover_class)?;
 
         cov_stats.add_coverage(aln.pos_iter());
         
