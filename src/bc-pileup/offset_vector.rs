@@ -16,10 +16,14 @@ impl<T> OffsetVector<T> {
         OffsetVector { start: start, vec: vec }
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize { self.vec.len() }
+    #[allow(dead_code)]
     pub fn start(&self) -> usize { self.start }
+    #[allow(dead_code)]
     pub fn end(&self) -> usize { self.start + self.vec.len() }
     
+    #[allow(dead_code)]
     pub fn get(&self, index: usize) -> Option<&T> {
         if index >= self.start {
             self.vec.get(index - self.start)
@@ -36,6 +40,7 @@ impl<T> OffsetVector<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn iter<'a>(&'a self) -> Iter<'a,T> { self.vec.iter() }
 
     pub fn pos_iter(&self) -> PosIter<T> { 
@@ -52,6 +57,7 @@ impl<T> OffsetVector<T> {
 impl<T> OffsetVector<T>
     where T: Default
 {
+    #[allow(dead_code)]
     pub fn new_with_default(start: usize, len: usize) -> Self {
         let mut vec = Vec::with_capacity(len);
         for _ in 0..len { vec.push(Default::default()) };

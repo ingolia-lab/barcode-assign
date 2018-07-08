@@ -1,8 +1,15 @@
 use std::collections::HashMap;
 use std::fmt::{Display,Formatter};
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path,PathBuf};
 use std::rc::Rc;
 use std::str;
 
+use aln_pos::{AlnCons,AlnPos};
+use trl::STD_CODONS;
+
+use errors::*;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
 pub struct NtMutn {
@@ -11,7 +18,7 @@ pub struct NtMutn {
     mutseq: Vec<u8>,
 }
 
-static nts: [u8; 4] = [ b'A', b'C', b'G', b'T' ];
+static NTS: [u8; 4] = [ b'A', b'C', b'G', b'T' ];
 
 impl NtMutn {
     pub fn new(pos: usize, refnt: u8, mutseq: Vec<u8>) -> Self {
@@ -26,7 +33,7 @@ impl NtMutn {
         let mut substs = Vec::new();
         for pos in start..(start+len) {
             if let Some(refnt) = refseq.get(pos) {
-                for nt in nts.iter().filter(|&nt| nt != refnt) {
+                for nt in NTS.iter().filter(|&nt| nt != refnt) {
                     substs.push(NtMutn::new(pos, *refnt, vec![*nt]));
                 }
             }
@@ -40,13 +47,6 @@ impl NtMutn {
                 str::from_utf8(&self.mutseq).unwrap_or("???"))
 
     }
-}
-
-#[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
-enum Change {
-    Missense(u8),
-    Nonsense,
-    Frameshift,
 }
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
@@ -144,5 +144,81 @@ impl MutnBarcodes {
         }
         
         buf
+    }
+}
+
+pub struct MutnAnalysis {
+    mutn_out: File,
+    pept_mutn_out: File,
+    exon_start: usize,
+    exon_upstream: Vec<u8>,
+    mutn_barcodes: MutnBarcodes,
+}
+
+impl MutnAnalysis {
+    pub fn new(outdir: &Path, exon_start: usize, exon_upstream: &[u8]) -> Result<Self> {
+        let mut mutn_out = File::create(outdir.to_path_buf().join("barcode-mutations.txt"))?;
+        let mut pept_mutn_out = File::create(outdir.to_path_buf().join("barcode-peptide-mutations.txt"))?;
+        let mutn_barcodes = MutnBarcodes::new();
+
+        write!(mutn_out, "Barcode\tPos\tRef\tRead\n")?;
+        write!(pept_mutn_out, "Barcode\tPos\tRef\tRead\n")?;
+        
+        Ok(MutnAnalysis { mutn_out: mutn_out,
+                          pept_mutn_out: pept_mutn_out,
+                          exon_start: exon_start,
+                          exon_upstream: exon_upstream.to_vec(),
+                          mutn_barcodes: mutn_barcodes })
+    }
+
+    pub fn analyze_aln_cons(self: &mut Self, bc_str: &str, aln_cons: AlnCons) -> Result<()> {    
+        let mut_posn = aln_cons.pos_iter().filter(|&(_pos,apc)| !apc.is_wildtype());
+        let bc_rc = Rc::new(bc_str.to_owned());
+        for (pos, apc) in mut_posn {
+            let mutn = NtMutn::new(pos, apc.ref_nt(), apc.mutseq());
+            write!(self.mutn_out, "{}\t{}\t{}\t{}\n",
+                   bc_str, mutn.pos(), mutn.refnt::<char>(),
+                   str::from_utf8(mutn.mutseq()).unwrap_or("???"))?;
+            self.mutn_barcodes.insert(mutn, bc_rc.clone());
+        }
+
+        let mut cds_ref = self.exon_upstream.clone();
+        let mut cds_cons = self.exon_upstream.clone();
+
+        let mut frameshift_nt = None;
+        for (pos,apc) in aln_cons.pos_iter().filter(|&(pos,_apc)| pos >= self.exon_start) {
+            apc.push_cons_seq(&mut cds_cons);
+            cds_ref.push(apc.ref_nt());
+            if apc.is_frameshift() && frameshift_nt.is_none() {
+                frameshift_nt = Some(pos);
+            }
+        }
+
+        let frameshift_codon = frameshift_nt.map(|nt| (nt + self.exon_upstream.len() - self.exon_start) / 3);
+
+        let mut nonsense_codon = None;
+
+        let pept_ref = STD_CODONS.trl(&cds_ref);
+        let pept_cons = STD_CODONS.trl(&cds_cons);
+        for (pos, (ref_aa, cons_aa)) in pept_ref.iter().zip(pept_cons.iter()).enumerate() {
+            if frameshift_codon.map_or(false, |c| pos >= c) {
+                let pept_mutn = PeptMutn::new(pos, *ref_aa, b'!');
+                write!(self.pept_mutn_out, "{}\t{}\n", bc_str, pept_mutn.tsv())?;
+                break;
+            }
+            
+            if cons_aa != ref_aa {
+                let pept_mutn = PeptMutn::new(pos, *ref_aa, *cons_aa);
+                if *cons_aa == b'*' {
+                    nonsense_codon = Some(pos);
+                    write!(self.pept_mutn_out, "{}\t{}\n", bc_str, pept_mutn.tsv())?;
+                    break;
+                } else {
+                    write!(self.pept_mutn_out, "{}\t{}\n", bc_str, pept_mutn.tsv())?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }

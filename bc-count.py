@@ -13,6 +13,7 @@ with (sys.stdout if args.output is None else open(args.output, 'w')) as hout:
     barcode_counts = {}
     total = 0
     bad_len = 0
+
     for record in SeqIO.parse(sys.stdin if args.input is None else args.input, "fastq"):
         total += 1
         sequ = str(record.seq)

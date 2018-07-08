@@ -19,7 +19,7 @@ use rust_htslib::prelude::*;
 
 use aln_pos::{Aln,AlnCons,AlnPos,AlnPosCons};
 use cov_stats::{Cover,CoverClass,CoverStats,ReadStartStats};
-use mutn::{PeptMutn,NtMutn,MutnBarcodes};
+use mutn::{PeptMutn,NtMutn,MutnAnalysis,MutnBarcodes};
 use trl::{CodonTable,STD_CODONS};
 
 mod aln_pos;
@@ -176,19 +176,11 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
     ref_cds.extend_from_slice(&refseq[config.exon_start..]);
     let ref_pept = STD_CODONS.trl(&ref_cds);
     
+    let mut mutn_analysis = MutnAnalysis::new(&config.outdir, config.exon_start, &config.exon_upstream)?;
+
     let mut class_out = fs::File::create(config.outfile("barcode-classify.txt"))?;
     let mut seq_out = fs::File::create(config.outfile("barcode-sequencing.txt"))?;
-    let mut mut_out = fs::File::create(config.outfile("barcode-mutations.txt"))?;
     let mut single_out = fs::File::create(config.outfile("barcode-singletons.txt"))?;
-
-    let mut mut_pept_out = fs::File::create(config.outfile("barcode-peptide-mutations.txt"))?;
-    let mut pept_sequ_out = fs::File::create(config.outfile("barcode-peptide-sequences.txt"))?;
-    let mut pept_out = fs::File::create(config.outfile("barcode-peptides.txt"))?;
-    write!(pept_out, "REFERENCE\t")?;
-    for aa in ref_pept.iter() { write!(pept_out, "{}", *aa as char)?; }
-    write!(pept_out, "\n")?;
-    
-    let mut mutn_barcodes = MutnBarcodes::new();
     
     let mut cov_stats = CoverStats::new(0, refseq.len(), 10);
     let mut read_start_stats = ReadStartStats::new(refseq.len());
@@ -245,57 +237,7 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
         write!(seq_out, "{}\t{}\t{}\n", bc_str, cover_class, aln.seq_desc())?;
         
         if cover_class == CoverClass::Good {        
-            let mut_posn = aln_cons.pos_iter().filter(|&(_pos,apc)| !apc.is_wildtype());
-            let bc_rc = Rc::new(bc_str.to_owned());
-            for (pos, apc) in mut_posn {
-                let mutn = NtMutn::new(pos, apc.ref_nt(), apc.mutseq());
-                write!(mut_out, "{}\t{}\t{}\t{}\n",
-                       bc_str, mutn.pos(), mutn.refnt::<char>(),
-                       str::from_utf8(mutn.mutseq()).unwrap_or("???"))?;
-                mutn_barcodes.insert(mutn, bc_rc.clone());
-            }
-
-            let mut cds_cons = config.exon_upstream.clone();
-            let mut frameshift = None;
-            for (pos,apc) in aln_cons.pos_iter().filter(|&(pos,_apc)| pos >= config.exon_start) {
-                apc.push_cons_seq(&mut cds_cons);
-                if apc.is_frameshift() && frameshift.is_none() {
-                    frameshift = Some(pos);
-                }
-            }
-
-            let pept_cons = STD_CODONS.trl(&cds_cons);
-
-            let mut nonsense = None;
-            let mut pept_mutns = Vec::new();
-            write!(pept_out, "{}\t", bc_str)?;
-            for (pos, (ref_aa, cons_aa)) in ref_pept.iter().zip(pept_cons.iter()).enumerate() {
-                let aa = if ref_aa == cons_aa { '.' } else { *cons_aa as char };
-                write!(pept_out, "{}", aa)?;
-
-                if cons_aa != ref_aa {
-                    if *cons_aa == b'*' {
-                        nonsense = Some(pos);
-                    } else {
-                        pept_mutns.push(PeptMutn::new(pos, *ref_aa, *cons_aa));
-                    }
-                }
-            }
-            write!(pept_out, "\n")?;
-
-            write!(pept_sequ_out, "{}", bc_str)?;
-            if let Some(fs) = frameshift {
-                let fs_codon = (fs + config.exon_upstream.len() - config.exon_start) / 3;
-                write!(pept_sequ_out, "\tFrameshift{}\n", fs_codon)?;
-            } else if let Some(ns) = nonsense {
-                write!(pept_sequ_out, "\tNonsense{}\n", ns)?;
-            } else {
-                for pept_mutn in pept_mutns {
-                    write!(mut_pept_out, "{}\t{}\n", bc_str, pept_mutn.tsv())?;
-                    write!(pept_sequ_out, "\t{}", pept_mutn)?;
-                }
-                write!(pept_sequ_out, "\n")?;
-            }
+            mutn_analysis.analyze_aln_cons(bc_str, aln_cons)?;
         }
     }
 
@@ -305,15 +247,15 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
     let mut cov_out = fs::File::create(config.outfile("coverage.txt"))?;
     write!(cov_out, "{}", cov_stats.table())?;
 
-    let mut mut_count_out = fs::File::create(config.outfile("mutation-barcode-counts.txt"))?;
-    write!(mut_count_out, "{}", mutn_barcodes.count_table())?;
+//    let mut mut_count_out = fs::File::create(config.outfile("mutation-barcode-counts.txt"))?;
+//    write!(mut_count_out, "{}", mutn_barcodes.count_table())?;
     
-    let mut mut_barcodes_out = fs::File::create(config.outfile("mutation-barcodes.txt"))?;
-    write!(mut_barcodes_out, "{}", mutn_barcodes.barcode_table())?;
+//    let mut mut_barcodes_out = fs::File::create(config.outfile("mutation-barcodes.txt"))?;
+//    write!(mut_barcodes_out, "{}", mutn_barcodes.barcode_table())?;
 
-    let mut subst_coverage_out = fs::File::create(config.outfile("substitution-coverage.txt"))?;
-    let all_substs = NtMutn::all_substs(0, refseq.len(), &refseq);
-    write!(subst_coverage_out, "{}", mutn_barcodes.mutn_table(all_substs.iter()))?;
+//    let mut subst_coverage_out = fs::File::create(config.outfile("substitution-coverage.txt"))?;
+//    let all_substs = NtMutn::all_substs(0, refseq.len(), &refseq);
+//    write!(subst_coverage_out, "{}", mutn_barcodes.mutn_table(all_substs.iter()))?;
     
     Ok( () )
 }
