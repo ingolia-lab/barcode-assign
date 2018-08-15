@@ -143,12 +143,12 @@ impl CoverStats {
         CoverStats(OffsetVector::new(start, repeat(CoverAt::new(max)).take(len).collect()))
     }
 
-    pub fn add_coverage<'a, I>(&mut self, pos_iter: I)
+    pub fn add_coverage<'a, I>(&mut self, pos_iter: I, het_fract: f64)
         where I: Iterator<Item=(usize,&'a AlnPos)>
     {
         for (pos, ap) in pos_iter {
             if let Some(at) = self.0.get_mut(pos) {
-                at.add_coverage(ap);
+                at.add_coverage(ap, het_fract);
             }
         }
     }
@@ -183,8 +183,8 @@ impl CoverAt {
 
     fn cover(&self) -> &[u32] { &self.cover }
 
-    fn add_coverage(&mut self, ap: &AlnPos) {
-        let cvg = if AlnPosCons::new(ap).is_good() { ap.nttl() } else { 0 };
+    fn add_coverage(&mut self, ap: &AlnPos, het_fract: f64) {
+        let cvg = if AlnPosCons::new(ap, het_fract).is_good() { ap.nttl() } else { 0 };
         let idx = if cvg >= self.cover.len() { self.cover.len() - 1 } else { cvg };
         self.cover[idx] += 1;
     }

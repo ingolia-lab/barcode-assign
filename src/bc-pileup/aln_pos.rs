@@ -180,12 +180,13 @@ pub struct AlnPosCons {
 }
 
 impl AlnPosCons {
-    pub fn new(aln_pos: &AlnPos) -> Self {
+    pub fn new(aln_pos: &AlnPos, het_fract: f64) -> Self {
         let nt_cts = aln_pos.nt_counts();
         if let Some(&(max_nt,max_nt_cts)) = nt_cts.iter().max_by_key(|&&(nt,cts)| (cts, nt == aln_pos.refnt())) {
             let penult_cts = nt_cts.iter().filter(|&&(nt,_cts)| nt != max_nt)
                 .map(|&(_nt,cts)| cts).max().unwrap_or(0);
-            let heterog_nt = (penult_cts == max_nt_cts) || (penult_cts > 1);
+            let heterog_nt = ((penult_cts == 1) && (max_nt_cts == 1))
+                || ((penult_cts > 1) && ((penult_cts as f64) > het_fract * (max_nt_cts as f64)));
 
             let ins_cts = aln_pos.ins_counts();
             let (cons_ins, heterog_ins) = 

@@ -58,6 +58,7 @@ struct Config {
     mutstart: usize,
     mutend: usize,
     refreverse: bool,
+    het_fract: f64,
     min_qual: u8,
     max_none: usize,
     max_heterog: usize,
@@ -143,6 +144,7 @@ fn main() {
             value_t!(matches.value_of("reqend"), usize).unwrap_or_else(|e| e.exit()) 
         },
         refreverse: false,
+        het_fract: 0.34,
         min_qual: 30,
         max_none: 2,
         max_heterog: 1,
@@ -179,6 +181,8 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
     let mut mutn_analysis = MutnAnalysis::new(&config.outdir, config.exon_start, &config.exon_upstream)?;
 
     let mut class_out = fs::File::create(config.outfile("barcode-classify.txt"))?;
+    write!(class_out, "barcode\tnread\tnstart\tnomcov\tcoverage\tmutations\theterog\tuncovered\tclass\n")?;
+
     let mut seq_out = fs::File::create(config.outfile("barcode-sequencing.txt"))?;
     let mut single_out = fs::File::create(config.outfile("barcode-singletons.txt"))?;
     
@@ -224,7 +228,7 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
         
         let mut tmp_reader = bam::Reader::from_path(&config.tmpfile)?;
         let aln = Aln::new_aln(config.mutstart, config.mutend, refseq, tmp_reader.pileup())?;
-        let aln_cons = aln.map_to(AlnPosCons::new);
+        let aln_cons = aln.map_to(|a| AlnPosCons::new(a, config.het_fract));
         
         let cover = Cover::new(aln_cons.pos_iter(), config.reqstart, config.reqend);
         let cover_class = cover.classify(config.max_none, config.max_heterog);
@@ -232,7 +236,7 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
         write!(class_out, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n", 
                bc_str, nread, nstart, nomcov, cover.wildtype() + cover.mutant(), cover.mutant(), cover.heterog(), cover.none(), cover_class)?;
 
-        cov_stats.add_coverage(aln.pos_iter());
+        cov_stats.add_coverage(aln.pos_iter(), config.het_fract);
         
         write!(seq_out, "{}\t{}\t{}\n", bc_str, cover_class, aln.seq_desc())?;
         
