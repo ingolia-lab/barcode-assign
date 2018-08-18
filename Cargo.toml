@@ -33,3 +33,7 @@ path = "src/bc-pileup/main.rs"
 [[bin]]
 name = "bc-count"
 path = "src/bc-count/main.rs"
+
+[[bin]]
+name = "bc-grna"
+path = "src/bc-grna/main.rs"
