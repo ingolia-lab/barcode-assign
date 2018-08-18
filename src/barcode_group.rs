@@ -1,36 +1,11 @@
-#[macro_use]
-extern crate error_chain;
-extern crate bio;
-extern crate rust_htslib;
-
-use std::path::{Path,PathBuf};
-use std::str;
-
-use bio::io::fasta;
-
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
-
-mod errors {
-    error_chain!{
-        foreign_links {
-            IO(::std::io::Error);
-            FromUtf8(::std::string::FromUtf8Error);
-            Utf8(::std::str::Utf8Error);
-            BamRead(::rust_htslib::bam::ReadError);
-            BamReaderPath(::rust_htslib::bam::ReaderPathError);
-            BamWrite(::rust_htslib::bam::WriteError);
-            BamWriterPath(::rust_htslib::bam::WriterPathError);
-            Pileup(::rust_htslib::bam::pileup::PileupError);
-        }
-    }
-}
 
 use errors::*;
 
 pub fn barcode(qname: &[u8]) -> Result<&[u8]> {
     qname.split(|&ch| ch == b'_').next()
-        .ok_or_else(|| format!("No barcode for {}", str::from_utf8(qname).unwrap_or("???")).into())
+        .ok_or_else(|| ErrorKind::NoBarcode(qname.to_vec()).into())
 }
 
 pub struct BarcodeGroups<'a> {

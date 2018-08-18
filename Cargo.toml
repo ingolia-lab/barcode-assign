@@ -16,7 +16,7 @@ opt-level = 3
 
 [lib]
 name = "barcode_assign"
-path = "src/barcode_group.rs"
+path = "src/barcode_assign.rs"
 
 [[bin]]
 name = "bc-seqs"
