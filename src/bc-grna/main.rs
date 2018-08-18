@@ -49,6 +49,8 @@ struct Config {
     out_base: PathBuf,
     min_reads: usize,
     min_qual: u8,
+    min_primary: f64,
+    min_purity: f64
 }
 
 impl Config {
@@ -118,6 +120,10 @@ fn main() {
         min_reads: value_t!(matches.value_of("minreads"), usize).unwrap_or_else(|e| e.exit()),
 
         min_qual: value_t!(matches.value_of("minqual"), u8).unwrap_or_else(|e| e.exit()),
+
+        // ZZZ
+        min_primary: 0.89,
+        min_purity: 0.89
     };
 
     if let Err(ref e) = run(&config) {
@@ -146,9 +152,20 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
     let mut depth_out = fs::File::create(config.outfile("barcode-depth.txt"))?;
     write!(depth_out, "barcode\tnread\tnlowqual\n")?;
 
+    let mut purity_out = fs::File::create(config.outfile("barcode-purity.txt"))?;
+    write!(purity_out, "barcode\tprimary\tother_match\tno_match\n")?;
+    
+    let mut fidelity_out = fs::File::create(config.outfile("barcode-fidelity.txt"))?;
+    write!(fidelity_out, "barcode\ttid\tpos\tcigar\tmd\n")?;
+    
     let mut bam_reader = bam::Reader::from_path(&config.bowtie_bam)?;
     let header = bam::Header::from_template(bam_reader.header());
     let header_view = bam::HeaderView::from_header(&header);
+
+    let targets_result: std::result::Result<Vec<&str>,std::str::Utf8Error> = header_view.target_names().iter()
+        .map(|name_u8| str::from_utf8(name_u8))
+        .collect();
+    let targets = targets_result?;
     
     let barcode_groups = BarcodeGroups::new(&mut bam_reader)?;
 
@@ -161,7 +178,6 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
         let mut qvec = qall.into_iter()
             .filter(|r| (median_qual(r) >= config.min_qual))
             .collect::<Vec<bam::Record>>();
-        qvec.sort_by_key(|r| (r.tid(), r.pos()));
 
         let nread = qvec.len();
         let nlowqual = nread_all - nread;
@@ -169,11 +185,57 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
         write!(depth_out, "{}\t{}\t{}\n", bc_str, nread, nlowqual)?;
         
         if nread >= config.min_reads {
+            let asn_count = count_read_assigns(qvec.iter())?;
+
+            let ((alnprimary, nprimary), rest) = asn_count.split_first().ok_or("No primary alignment!")?;
+            let ntotal: usize = asn_count.iter().map(|&(ref _a, ref n)| *n).sum();
+            let nempty: usize = asn_count.iter()
+                .filter(|&(ref a, ref _n)| a.is_no_match())
+                .map(|&(ref _a, ref n)| *n).sum();
+            let nother: usize = rest.iter()
+                .filter(|&(ref a, ref _n)| !a.is_no_match())
+                .map(|&(ref _a, ref n)| *n).sum();
             
+            write!(purity_out, "{}\t{}\t{}\t{}\n", bc_str, nprimary, nother, nempty)?;
+            
+            if (*nprimary as f64) > (ntotal as f64) * config.min_primary &&
+                (*nprimary as f64) > ( (nprimary + nother) as f64 * config.min_purity)
+            {
+                if let ReadAssign::Match(assign) = alnprimary {
+                    write!(fidelity_out, "{}\t{}\t{}\t{:?}\t{}\n",
+                           bc_str, targets.get(assign.tid as usize).unwrap_or(&"???"), assign.pos,
+                           assign.cigar, str::from_utf8(assign.md.as_slice())?)?;
+                }
+            }
         }
     }
 
     Ok( () )
+}
+
+fn count_read_assigns<'a, I>(r_iter: I) -> Result<Vec<(ReadAssign,usize)>>
+    where I: Iterator<Item = &'a bam::Record>
+{
+    let mut cts = Vec::new();
+    
+    for r in r_iter {
+        let asn = ReadAssign::new(r)?;
+
+        let mut extant = false;
+        for &mut(ref mut a, ref mut n) in cts.iter_mut() {
+            if asn == *a {
+                *n += 1;
+                extant = true;
+            }
+        }
+        if !extant {
+            cts.push( (asn, 1) );
+        }
+    }
+
+    cts.sort_by_key(|&(ref _a, ref n)| - (*n as isize));
+    
+    Ok( cts )
 }
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
@@ -200,6 +262,13 @@ impl ReadAssign {
                                              is_reverse: r.is_reverse(),
                                              cigar: cigar, md: md };
             Ok( ReadAssign::Match(assign_match) )
+        }
+    }
+
+    pub fn is_no_match(&self) -> bool {
+        match self {
+            ReadAssign::NoMatch => true,
+            _ => false
         }
     }
 }
