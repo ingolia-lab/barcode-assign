@@ -8,6 +8,7 @@ extern crate barcode_assign;
 
 use std::fs;
 
+use std::collections::HashMap;
 use std::io::{Write};
 use std::path::{Path,PathBuf};
 use std::str;
@@ -55,7 +56,6 @@ struct Config {
     out_base: PathBuf,
     min_reads: usize,
     min_qual: u8,
-    min_primary: f64,
     min_purity: f64
 }
 
@@ -128,7 +128,6 @@ fn main() {
         min_qual: value_t!(matches.value_of("minqual"), u8).unwrap_or_else(|e| e.exit()),
 
         // ZZZ
-        min_primary: 0.89,
         min_purity: 0.89
     };
 
@@ -152,6 +151,8 @@ fn run(config: &Config) -> Result<()> {
 }
 
 fn barcode_to_grna(config: &Config) -> Result<()> {
+    let mut fates: HashMap<Fate,usize> = HashMap::new();
+
     let mut good_assign = fs::File::create(config.outfile("barcode-grna-good.txt"))?;
     write!(good_assign, "barcode\tguide\n")?;
 
@@ -182,19 +183,54 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
         let (qvec, depth) = filter_by_quality(qall, config.min_qual);
         write!(depth_out, "{}\n", depth.line(bc_str))?;
         
-        if depth.n_good() >= config.min_reads {
+        let fate = if depth.n_good() < config.min_reads {
+            Fate::NoDepth
+        } else {
             let purity = Purity::new(qvec.iter())?;
             write!(purity_out, "{}\n", purity.line(bc_str))?;
 
-            {
+            if purity.purity() < config.min_purity {
+                Fate::NoPurity
+            } else {
                 if let ReadAssign::Match(assign) = purity.primary_assign() {
                     write!(fidelity_out, "{}\t{}\t{}\t{:?}\t{}\n",
                            bc_str, assign.target(&targets), assign.pos(),
                            assign.cigar(), str::from_utf8(assign.md())?)?;
+
+                    if (assign.pos() == config.align_start as i32)
+                        && assign.is_cigar_perfect(config.align_len as u32)
+                        && assign.is_md_perfect(config.align_len as u32)
+                    {
+                        write!(good_assign, "{}\t{}\n",
+                               bc_str, assign.target(&targets))?;
+                        Fate::Good
+                    } else {
+                        Fate::NoFidelity
+                    }
+                } else {
+                    Fate::NoMatch
                 }
             }
-        }
+        };
+
+        *fates.entry(fate).or_insert(0) += 1;
     }
+
+    let mut fates_out = fs::File::create(config.outfile("barcode-fates.txt"))?;
+    write!(fates_out, "Good\t{}\n", fates.get(&Fate::Good).unwrap_or(&0))?;
+    write!(fates_out, "Bad Match\t{}\n", fates.get(&Fate::NoFidelity).unwrap_or(&0))?;
+    write!(fates_out, "No Match\t{}\n", fates.get(&Fate::NoMatch).unwrap_or(&0))?;
+    write!(fates_out, "Mixed\t{}\n", fates.get(&Fate::NoPurity).unwrap_or(&0))?;
+    write!(fates_out, "Too Few\t{}\n", fates.get(&Fate::NoDepth).unwrap_or(&0))?;
     
     Ok( () )
+}
+
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+enum Fate {
+    Good,
+    NoFidelity,
+    NoMatch,
+    NoPurity,
+    NoDepth
 }

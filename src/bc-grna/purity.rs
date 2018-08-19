@@ -70,7 +70,7 @@ impl Purity {
     }
     
     pub fn line(&self, bc_str: &str) -> String {
-        format!("{}\t{}\t{}\t{}\n", bc_str,
+        format!("{}\t{}\t{}\t{}", bc_str,
                 self.n_primary(), self.n_other_match(), self.n_no_match())
     }
 }

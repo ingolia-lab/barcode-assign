@@ -1,4 +1,7 @@
+use std::str;
+
 use rust_htslib::bam;
+use rust_htslib::bam::record::{Cigar,CigarString};
 
 use errors::*;
 
@@ -19,8 +22,7 @@ impl ReadAssign {
                 _ => Err("MD tag not a string")
             }?;
 
-            let cigar_view = r.cigar();
-            let cigar: Vec<bam::record::Cigar> = cigar_view.iter().map(|&c| c.clone()).collect();
+            let cigar = (*r.cigar()).clone();
             
             let assign_match = AssignMatch { tid: r.tid() as u32, pos: r.pos(),
                                              is_reverse: r.is_reverse(),
@@ -42,7 +44,7 @@ pub struct AssignMatch {
     tid: u32,
     pos: i32,
     is_reverse: bool,
-    cigar: Vec<bam::record::Cigar>,
+    cigar: CigarString,
     md: Vec<u8>
 }
 
@@ -55,8 +57,24 @@ impl AssignMatch {
 
     pub fn pos(&self) -> i32 { self.pos }
     pub fn is_reverse(&self) -> bool { self.is_reverse }
-    pub fn cigar(&self) -> &[bam::record::Cigar] { self.cigar.as_slice() }
+    pub fn cigar(&self) -> CigarString { self.cigar.clone() }
+    pub fn cigar_string(&self) -> String { self.cigar.to_string() }
     pub fn md(&self) -> &[u8] { self.md.as_slice() }
+
+    pub fn is_cigar_perfect(&self, len: u32) -> bool {
+        let CigarString(ref v) = self.cigar;
+        (v.len() == 1) && (v[0] == Cigar::Match(len))
+    }
+
+    pub fn is_md_perfect(&self, len: u32) -> bool {
+        len.to_string().as_str().as_bytes() == self.md.as_slice()
+    }
+
+    pub fn line(&self, bc_str: &str, targets: &[&str]) -> Result<String> {
+        Ok( format!("{}\t{}\t{}\t{:?}\t{}",
+                    bc_str, self.target(&targets), self.pos(),
+                    self.cigar_string(), str::from_utf8(self.md())?) )
+    }
 }
 
 
