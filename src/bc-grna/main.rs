@@ -10,19 +10,21 @@ use std::fs;
 
 use std::io::{Write};
 use std::path::{Path,PathBuf};
-use std::rc::Rc;
 use std::str;
 
-use bio::io::fasta;
 use clap::{Arg, App};
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
 use barcode_assign::barcode_group::*;
 
+mod assign;
 mod depth;
+mod purity;
 
+use assign::*;
 use depth::*;
+use purity::*;
 
 mod errors {
     error_chain!{
@@ -157,7 +159,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
     write!(depth_out, "{}\n", Depth::header())?;
 
     let mut purity_out = fs::File::create(config.outfile("barcode-purity.txt"))?;
-    write!(purity_out, "barcode\tprimary\tother_match\tno_match\n")?;
+    write!(purity_out, "{}\n", Purity::header())?;
     
     let mut fidelity_out = fs::File::create(config.outfile("barcode-fidelity.txt"))?;
     write!(fidelity_out, "barcode\ttid\tpos\tcigar\tmd\n")?;
@@ -181,26 +183,14 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
         write!(depth_out, "{}\n", depth.line(bc_str))?;
         
         if depth.n_good() >= config.min_reads {
-            let asn_count = count_read_assigns(qvec.iter())?;
+            let purity = Purity::new(qvec.iter())?;
+            write!(purity_out, "{}\n", purity.line(bc_str))?;
 
-            let ((alnprimary, nprimary), rest) = asn_count.split_first().ok_or("No primary alignment!")?;
-            let ntotal: usize = asn_count.iter().map(|&(ref _a, ref n)| *n).sum();
-            let nempty: usize = asn_count.iter()
-                .filter(|&(ref a, ref _n)| a.is_no_match())
-                .map(|&(ref _a, ref n)| *n).sum();
-            let nother: usize = rest.iter()
-                .filter(|&(ref a, ref _n)| !a.is_no_match())
-                .map(|&(ref _a, ref n)| *n).sum();
-            
-            write!(purity_out, "{}\t{}\t{}\t{}\n", bc_str, nprimary, nother, nempty)?;
-            
-            if (*nprimary as f64) > (ntotal as f64) * config.min_primary &&
-                (*nprimary as f64) > ( (nprimary + nother) as f64 * config.min_purity)
             {
-                if let ReadAssign::Match(assign) = alnprimary {
+                if let ReadAssign::Match(assign) = purity.primary_assign() {
                     write!(fidelity_out, "{}\t{}\t{}\t{:?}\t{}\n",
-                           bc_str, targets.get(assign.tid as usize).unwrap_or(&"???"), assign.pos,
-                           assign.cigar, str::from_utf8(assign.md.as_slice())?)?;
+                           bc_str, assign.target(&targets), assign.pos(),
+                           assign.cigar(), str::from_utf8(assign.md())?)?;
                 }
             }
         }
@@ -208,79 +198,3 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
     
     Ok( () )
 }
-
-fn count_read_assigns<'a, I>(r_iter: I) -> Result<Vec<(ReadAssign,usize)>>
-    where I: Iterator<Item = &'a bam::Record>
-{
-    let mut cts = Vec::new();
-    
-    for r in r_iter {
-        let asn = ReadAssign::new(r)?;
-        
-        let mut extant = false;
-        for &mut(ref mut a, ref mut n) in cts.iter_mut() {
-            if asn == *a {
-                *n += 1;
-                extant = true;
-            }
-        }
-        if !extant {
-            cts.push( (asn, 1) );
-        }
-    }
-    
-    cts.sort_by_key(|&(ref _a, ref n)| - (*n as isize));
-    
-    Ok( cts )
-}
-
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct Purity {
-    
-}    
-    
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-enum ReadAssign {
-    NoMatch,
-    Match(AssignMatch)
-}
-
-impl ReadAssign {
-    pub fn new(r: &bam::Record) -> Result<Self> {
-        if r.tid() < 0 {
-            Ok( ReadAssign::NoMatch )
-        } else {
-            let md_aux = r.aux(b"MD").ok_or_else(|| "No MD tag")?;
-            let md: Vec<u8> = match md_aux {
-                bam::record::Aux::String(md) => Ok( md.to_vec() ),
-                _ => Err("MD tag not a string")
-            }?;
-
-            let cigar_view = r.cigar();
-            let cigar: Vec<bam::record::Cigar> = cigar_view.iter().map(|&c| c.clone()).collect();
-            
-            let assign_match = AssignMatch { tid: r.tid() as u32, pos: r.pos(),
-                                             is_reverse: r.is_reverse(),
-                                             cigar: cigar, md: md };
-            Ok( ReadAssign::Match(assign_match) )
-        }
-    }
-
-    pub fn is_no_match(&self) -> bool {
-        match self {
-            ReadAssign::NoMatch => true,
-            _ => false
-        }
-    }
-}
-
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-struct AssignMatch {
-    tid: u32,
-    pos: i32,
-    is_reverse: bool,
-    cigar: Vec<bam::record::Cigar>,
-    md: Vec<u8>
-}
-
-
