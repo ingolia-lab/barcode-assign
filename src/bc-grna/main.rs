@@ -112,6 +112,12 @@ fn main() {
              .help("Minimum (median) quality score to include read")
              .takes_value(true)
              .default_value("30"))
+        .arg(Arg::with_name("minpurity")
+             .long("min-purity")
+             .value_name("PURITY")
+             .help("Minimum fraction of reads that must align to the same guide")
+             .takes_value(true)
+             .default_value("0.849"))
         .get_matches();
     
     let config = Config {
@@ -124,11 +130,8 @@ fn main() {
         out_base: PathBuf::from(matches.value_of("outbase").unwrap()),
 
         min_reads: value_t!(matches.value_of("minreads"), usize).unwrap_or_else(|e| e.exit()),
-
         min_qual: value_t!(matches.value_of("minqual"), u8).unwrap_or_else(|e| e.exit()),
-
-        // ZZZ
-        min_purity: 0.89
+        min_purity: value_t!(matches.value_of("minpurity"), f64).unwrap_or_else(|e| e.exit()),
     };
 
     if let Err(ref e) = run(&config) {
@@ -198,6 +201,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
                            assign.cigar(), str::from_utf8(assign.md())?)?;
 
                     if (assign.pos() == config.align_start as i32)
+                        && (assign.is_reverse() == config.is_reverse)
                         && assign.is_cigar_perfect(config.align_len as u32)
                         && assign.is_md_perfect(config.align_len as u32)
                     {
