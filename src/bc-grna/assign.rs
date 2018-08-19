@@ -49,6 +49,7 @@ pub struct AssignMatch {
 }
 
 impl AssignMatch {
+    #[allow(dead_code)]
     pub fn tid(&self) -> u32 { self.tid }
     
     pub fn target(&self, targets: &[&str]) -> String {
@@ -57,6 +58,8 @@ impl AssignMatch {
 
     pub fn pos(&self) -> i32 { self.pos }
     pub fn is_reverse(&self) -> bool { self.is_reverse }
+
+    #[allow(dead_code)]
     pub fn cigar(&self) -> CigarString { self.cigar.clone() }
     pub fn cigar_string(&self) -> String { self.cigar.to_string() }
     pub fn md(&self) -> &[u8] { self.md.as_slice() }
@@ -70,6 +73,10 @@ impl AssignMatch {
         len.to_string().as_str().as_bytes() == self.md.as_slice()
     }
 
+    pub fn header() -> String {
+        "barcode\ttid\tpos\tcigar\tmd".to_string()
+    }
+    
     pub fn line(&self, bc_str: &str, targets: &[&str]) -> Result<String> {
         Ok( format!("{}\t{}\t{}\t{:?}\t{}",
                     bc_str, self.target(&targets), self.pos(),

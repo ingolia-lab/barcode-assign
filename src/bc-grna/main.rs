@@ -10,7 +10,7 @@ use std::fs;
 
 use std::collections::HashMap;
 use std::io::{Write};
-use std::path::{Path,PathBuf};
+use std::path::PathBuf;
 use std::str;
 
 use clap::{Arg, App};
@@ -109,7 +109,7 @@ fn main() {
         .arg(Arg::with_name("minqual")
              .long("min-qual")
              .value_name("MINQUAL")
-             .help("Minimum (median) quality score to include read")
+             .help("Minimum (in any position) quality score to include read")
              .takes_value(true)
              .default_value("30"))
         .arg(Arg::with_name("minpurity")
@@ -166,7 +166,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
     write!(purity_out, "{}\n", Purity::header())?;
     
     let mut fidelity_out = fs::File::create(config.outfile("barcode-fidelity.txt"))?;
-    write!(fidelity_out, "barcode\ttid\tpos\tcigar\tmd\n")?;
+    write!(fidelity_out, "{}\n", AssignMatch::header())?;
     
     let mut bam_reader = bam::Reader::from_path(&config.bowtie_bam)?;
     let header = bam::Header::from_template(bam_reader.header());
@@ -196,9 +196,8 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
                 Fate::NoPurity
             } else {
                 if let ReadAssign::Match(assign) = purity.primary_assign() {
-                    write!(fidelity_out, "{}\t{}\t{}\t{:?}\t{}\n",
-                           bc_str, assign.target(&targets), assign.pos(),
-                           assign.cigar(), str::from_utf8(assign.md())?)?;
+                    write!(fidelity_out, "{}\n",
+                           assign.line(bc_str, &targets)?)?;
 
                     if (assign.pos() == config.align_start as i32)
                         && (assign.is_reverse() == config.is_reverse)
