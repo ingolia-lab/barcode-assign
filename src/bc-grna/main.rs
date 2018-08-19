@@ -20,6 +20,10 @@ use rust_htslib::prelude::*;
 
 use barcode_assign::barcode_group::*;
 
+mod depth;
+
+use depth::*;
+
 mod errors {
     error_chain!{
         links {
@@ -107,7 +111,7 @@ fn main() {
              .takes_value(true)
              .default_value("30"))
         .get_matches();
-               
+    
     let config = Config {
         bowtie_bam: PathBuf::from(matches.value_of("bambyname").unwrap()),
         align_len: value_t!(matches.value_of("alignlen"), usize).unwrap_or_else(|e| e.exit()),
@@ -150,7 +154,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
     write!(good_assign, "barcode\tguide\n")?;
 
     let mut depth_out = fs::File::create(config.outfile("barcode-depth.txt"))?;
-    write!(depth_out, "barcode\tnread\tnlowqual\n")?;
+    write!(depth_out, "{}\n", Depth::header())?;
 
     let mut purity_out = fs::File::create(config.outfile("barcode-purity.txt"))?;
     write!(purity_out, "barcode\tprimary\tother_match\tno_match\n")?;
@@ -173,18 +177,10 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
         let (bc, qall) = barcode_group?;
         let bc_str = str::from_utf8(bc.as_slice()).unwrap_or("???");
 
-        let nread_all = qall.len();
+        let (qvec, depth) = filter_by_quality(qall, config.min_qual);
+        write!(depth_out, "{}\n", depth.line(bc_str))?;
         
-        let mut qvec = qall.into_iter()
-            .filter(|r| (median_qual(r) >= config.min_qual))
-            .collect::<Vec<bam::Record>>();
-
-        let nread = qvec.len();
-        let nlowqual = nread_all - nread;
-        
-        write!(depth_out, "{}\t{}\t{}\n", bc_str, nread, nlowqual)?;
-        
-        if nread >= config.min_reads {
+        if depth.n_good() >= config.min_reads {
             let asn_count = count_read_assigns(qvec.iter())?;
 
             let ((alnprimary, nprimary), rest) = asn_count.split_first().ok_or("No primary alignment!")?;
@@ -209,7 +205,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
             }
         }
     }
-
+    
     Ok( () )
 }
 
@@ -220,7 +216,7 @@ fn count_read_assigns<'a, I>(r_iter: I) -> Result<Vec<(ReadAssign,usize)>>
     
     for r in r_iter {
         let asn = ReadAssign::new(r)?;
-
+        
         let mut extant = false;
         for &mut(ref mut a, ref mut n) in cts.iter_mut() {
             if asn == *a {
@@ -232,12 +228,17 @@ fn count_read_assigns<'a, I>(r_iter: I) -> Result<Vec<(ReadAssign,usize)>>
             cts.push( (asn, 1) );
         }
     }
-
+    
     cts.sort_by_key(|&(ref _a, ref n)| - (*n as isize));
     
     Ok( cts )
 }
 
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub struct Purity {
+    
+}    
+    
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 enum ReadAssign {
     NoMatch,
@@ -282,9 +283,4 @@ struct AssignMatch {
     md: Vec<u8>
 }
 
-fn median_qual(r: &bam::Record) -> u8 {
-    let mut quals = r.qual().to_vec();
-    quals.sort();
-    quals.get(quals.len() / 2).map_or(0, |q| *q)
-}
 
