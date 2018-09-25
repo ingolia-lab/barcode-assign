@@ -184,7 +184,8 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
     ref_cds.extend_from_slice(&refseq[config.exon_start..]);
     let ref_pept = STD_CODONS.trl(&ref_cds);
     
-    let mut mutn_analysis = MutnAnalysis::new(&config.outdir, config.exon_start, &config.exon_upstream)?;
+    let mut good_mutn_analysis = MutnAnalysis::new(&config.outdir, "", config.exon_start, &config.exon_upstream)?;
+    let mut gapped_mutn_analysis = MutnAnalysis::new(&config.outdir, "gapped", config.exon_start, &config.exon_upstream)?;
 
     let mut class_out = fs::File::create(config.outfile("barcode-classify.txt"))?;
     write!(class_out, "barcode\tnread\tnstart\tnomcov\tcoverage\tmutations\theterog\tuncovered\tclass\n")?;
@@ -247,7 +248,9 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
         write!(seq_out, "{}\t{}\t{}\n", bc_str, cover_class, aln.seq_desc())?;
         
         if cover_class == CoverClass::Good {        
-            mutn_analysis.analyze_aln_cons(bc_str, aln_cons)?;
+            good_mutn_analysis.analyze_aln_cons(bc_str, aln_cons)?;
+        } else if cover_class == CoverClass::Gapped {
+            gapped_mutn_analysis.analyze_aln_cons(bc_str, aln_cons)?;
         }
     }
 

@@ -156,9 +156,9 @@ pub struct MutnAnalysis {
 }
 
 impl MutnAnalysis {
-    pub fn new(outdir: &Path, exon_start: usize, exon_upstream: &[u8]) -> Result<Self> {
-        let mut mutn_out = File::create(outdir.to_path_buf().join("barcode-mutations.txt"))?;
-        let mut pept_mutn_out = File::create(outdir.to_path_buf().join("barcode-peptide-mutations.txt"))?;
+    pub fn new(outdir: &Path, prefix: &str, exon_start: usize, exon_upstream: &[u8]) -> Result<Self> {
+        let mut mutn_out = File::create(outdir.to_path_buf().join(prefix.to_string() + "barcode-mutations.txt"))?;
+        let mut pept_mutn_out = File::create(outdir.to_path_buf().join(prefix.to_string() + "barcode-peptide-mutations.txt"))?;
         let mutn_barcodes = MutnBarcodes::new();
 
         write!(mutn_out, "Barcode\tPos\tRef\tRead\n")?;
