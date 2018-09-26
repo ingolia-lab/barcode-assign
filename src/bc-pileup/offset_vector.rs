@@ -1,5 +1,5 @@
 use std::default::Default;
-use std::iter::{Enumerate,repeat};
+use std::iter::Enumerate;
 use std::slice::Iter;
 
 /// A vector that can start at an index other than `0`.

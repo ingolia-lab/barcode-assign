@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::fmt::{Display,Formatter};
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path,PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 use std::str;
 
-use aln_pos::{AlnCons,AlnPos};
+use aln_pos::AlnCons;
 use trl::STD_CODONS;
 
 use errors::*;
@@ -18,6 +18,7 @@ pub struct NtMutn {
     mutseq: Vec<u8>,
 }
 
+    #[allow(dead_code)]
 static NTS: [u8; 4] = [ b'A', b'C', b'G', b'T' ];
 
 impl NtMutn {
@@ -29,6 +30,7 @@ impl NtMutn {
     pub fn mutseq(&self) -> &[u8] { &self.mutseq }
     pub fn refnt<T: From<u8>>(&self) -> T { T::from(self.refnt) }
 
+    #[allow(dead_code)]
     pub fn all_substs(start: usize, len: usize, refseq: &[u8]) -> Vec<NtMutn> {
         let mut substs = Vec::new();
         for pos in start..(start+len) {
@@ -93,6 +95,7 @@ impl MutnBarcodes {
         bc_vec.push(mutn);
     }
 
+    #[allow(dead_code)]
     pub fn count_table(&self) -> String {
         let mut buf = String::new();
 
@@ -106,6 +109,7 @@ impl MutnBarcodes {
         buf
     }
 
+    #[allow(dead_code)]
     pub fn barcode_table(&self) -> String {
         let mut buf = String::new();
 
@@ -127,7 +131,8 @@ impl MutnBarcodes {
     fn is_single_mutn(&self, barcode: &Rc<String>) -> bool {
         self.bc_mut.get(barcode).map_or(false, |&ref muts| muts.len() == 1)
     }
-    
+
+    #[allow(dead_code)]
     pub fn mutn_table<'a, I>(&self, mutns: I) -> String
         where I: Iterator<Item=&'a NtMutn>
     {
@@ -172,7 +177,7 @@ impl MutnAnalysis {
     }
 
     pub fn analyze_aln_cons(self: &mut Self, bc_str: &str, aln_cons: AlnCons) -> Result<()> {    
-        let mut_posn = aln_cons.pos_iter().filter(|&(_pos,apc)| !apc.is_wildtype());
+        let mut_posn = aln_cons.pos_iter().filter(|&(_pos,apc)| !apc.is_wildtype() && !apc.is_uncovered());
         let bc_rc = Rc::new(bc_str.to_owned());
         for (pos, apc) in mut_posn {
             let mutn = NtMutn::new(pos, apc.ref_nt(), apc.mutseq());
@@ -196,7 +201,7 @@ impl MutnAnalysis {
 
         let frameshift_codon = frameshift_nt.map(|nt| (nt + self.exon_upstream.len() - self.exon_start) / 3);
 
-        let mut nonsense_codon = None;
+        let mut _nonsense_codon = None;
 
         let pept_ref = STD_CODONS.trl(&cds_ref);
         let pept_cons = STD_CODONS.trl(&cds_cons);
@@ -210,7 +215,7 @@ impl MutnAnalysis {
             if cons_aa != ref_aa {
                 let pept_mutn = PeptMutn::new(pos, *ref_aa, *cons_aa);
                 if *cons_aa == b'*' {
-                    nonsense_codon = Some(pos);
+                    _nonsense_codon = Some(pos);
                     write!(self.pept_mutn_out, "{}\t{}\n", bc_str, pept_mutn.tsv())?;
                     break;
                 } else {

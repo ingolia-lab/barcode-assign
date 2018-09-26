@@ -214,13 +214,16 @@ impl AlnPosCons {
     pub fn is_wildtype(&self) -> bool { self.ref_nt == self.cons_nt && self.cons_ins.is_empty() }
     pub fn is_mutant(&self) -> bool { !self.is_uncovered() && !self.is_wildtype() }
     pub fn is_heterog(&self) -> bool { self.heterog }
+    #[allow(dead_code)]
     pub fn is_insertion(&self) -> bool { !self.cons_ins.is_empty() }
     pub fn is_frameshift(&self) -> bool { (self.cons_nt == b'-') || (!self.cons_ins.is_empty()) }
     
     pub fn is_good(&self) -> bool { !self.is_uncovered() & !self.is_heterog() }
 
     pub fn ref_nt(&self) -> u8 { self.ref_nt }
+    #[allow(dead_code)]
     pub fn cons_nt(&self) -> u8 { self.cons_nt }
+    #[allow(dead_code)]
     pub fn cons_ins(&self) -> &[u8] { &self.cons_ins }
 
     pub fn mutseq(&self) -> Vec<u8> {
@@ -232,6 +235,7 @@ impl AlnPosCons {
         mutseq
     }
 
+    #[allow(dead_code)]
     pub fn push_cons_seq(&self, seq: &mut Vec<u8>) {
         match self.cons_nt {
             b'_' => seq.push(self.ref_nt),
@@ -295,6 +299,7 @@ impl OffsetVector<AlnPos> {
 pub type AlnCons = OffsetVector<AlnPosCons>;
 
 impl OffsetVector<AlnPosCons> {
+    #[allow(dead_code)]
     pub fn push_cons_seq(&self, seq: &mut Vec<u8>) {
         for apc in self.iter() {
             apc.push_cons_seq(seq);

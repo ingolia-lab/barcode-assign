@@ -10,7 +10,6 @@ use std::fs;
 
 use std::io::{Write};
 use std::path::{Path,PathBuf};
-use std::rc::Rc;
 use std::str;
 
 use bio::io::fasta;
@@ -20,10 +19,9 @@ use rust_htslib::prelude::*;
 
 use barcode_assign::barcode_group::*;
 
-use aln_pos::{Aln,AlnCons,AlnPos,AlnPosCons};
+use aln_pos::{Aln,AlnPosCons};
 use cov_stats::{Cover,CoverClass,CoverStats,ReadStartStats};
-use mutn::{PeptMutn,NtMutn,MutnAnalysis,MutnBarcodes};
-use trl::{CodonTable,STD_CODONS};
+use mutn::MutnAnalysis;
 
 mod aln_pos;
 mod cov_stats;
@@ -182,10 +180,9 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
 
     let mut ref_cds = config.exon_upstream.clone();
     ref_cds.extend_from_slice(&refseq[config.exon_start..]);
-    let ref_pept = STD_CODONS.trl(&ref_cds);
     
     let mut good_mutn_analysis = MutnAnalysis::new(&config.outdir, "", config.exon_start, &config.exon_upstream)?;
-    let mut gapped_mutn_analysis = MutnAnalysis::new(&config.outdir, "gapped", config.exon_start, &config.exon_upstream)?;
+    let mut gapped_mutn_analysis = MutnAnalysis::new(&config.outdir, "gapped-", config.exon_start, &config.exon_upstream)?;
 
     let mut class_out = fs::File::create(config.outfile("barcode-classify.txt"))?;
     write!(class_out, "barcode\tnread\tnstart\tnomcov\tcoverage\tmutations\theterog\tuncovered\tclass\n")?;

@@ -33,11 +33,11 @@ pub struct Cover {
 }
 
 impl Cover {
-    pub fn new<'a, I>(aln_cons: I, covstart: usize, covend: usize) -> Self
+    pub fn new<'a, I>(aln_cons: I, _covstart: usize, _covend: usize) -> Self
         where I: Iterator<Item=(usize,&'a AlnPosCons)>
     {
         let mut cover = Cover { wildtype: 0, heterog: 0, none: 0, mutant: 0 };
-        for (pos, apc) in aln_cons {
+        for (_pos, apc) in aln_cons {
             if apc.is_wildtype() {
                 cover.wildtype += 1;
             } else if apc.is_mutant() {
