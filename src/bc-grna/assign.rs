@@ -71,23 +71,27 @@ impl AssignMatch {
     pub fn cigar_string(&self) -> String { self.cigar.to_string() }
     pub fn md(&self) -> &[u8] { self.md.as_slice() }
 
-    pub fn is_cigar_perfect(&self, len: u32) -> bool {
+    pub fn is_cigar_perfect(&self) -> bool {
         let CigarString(ref v) = self.cigar;
-        (v.len() == 1) && (v[0] == Cigar::Match(len))
+        (v.len() == 1) && (match v[0] { Cigar::Match(_) => true, _ => false} )
     }
 
-    pub fn is_md_perfect(&self, len: u32) -> bool {
-        len.to_string().as_str().as_bytes() == self.md.as_slice()
+    pub fn is_md_perfect(&self) -> bool {
+        self.md.iter().all(u8::is_ascii_digit)
     }
 
     pub fn header() -> String {
         "barcode\ttid\tpos\tcigar\tmd".to_string()
     }
-    
+
     pub fn line(&self, bc_str: &str, targets: &[&str]) -> Result<String> {
         Ok( format!("{}\t{}\t{}\t{:?}\t{}",
                     bc_str, self.target(&targets), self.pos(),
                     self.cigar_string(), str::from_utf8(self.md())?) )
+    }
+
+    pub fn field(&self) -> String {
+        format!("{}:{}", self.cigar_string(), String::from_utf8_lossy(self.md()))
     }
 }
 

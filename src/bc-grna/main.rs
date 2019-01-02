@@ -50,7 +50,6 @@ use errors::*;
 #[derive(Debug)]
 struct Config {
     bowtie_bam: PathBuf,
-    align_len: usize,
     align_start: usize,
     is_reverse: bool,
     out_base: PathBuf,
@@ -88,12 +87,6 @@ fn main() {
              .help("Output base filename")
              .takes_value(true)
              .required(true))
-        .arg(Arg::with_name("alignlen")
-             .long("align-len")
-             .value_name("LEN")
-             .help("Length of aligned sequence")
-             .takes_value(true)
-             .required(true))
         .arg(Arg::with_name("alignstart")
              .long("align-start")
              .value_name("START")
@@ -122,7 +115,6 @@ fn main() {
     
     let config = Config {
         bowtie_bam: PathBuf::from(matches.value_of("bambyname").unwrap()),
-        align_len: value_t!(matches.value_of("alignlen"), usize).unwrap_or_else(|e| e.exit()),
         align_start: value_t!(matches.value_of("alignstart"), usize).unwrap_or_else(|e| e.exit()),
 
         is_reverse: false,
@@ -158,7 +150,9 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
 
     let mut good_assign = fs::File::create(config.outfile("barcode-grna-good.txt"))?;
     write!(good_assign, "barcode\tguide\n")?;
-
+    let mut bad_assign = fs::File::create(config.outfile("barcode-bad-assign.txt"))?;
+    write!(bad_assign, "barcode\tDefect\tDetails\n")?;
+    
     let mut depth_out = fs::File::create(config.outfile("barcode-depth.txt"))?;
     write!(depth_out, "{}\n", Depth::header())?;
 
@@ -193,6 +187,8 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
             write!(purity_out, "{}\n", purity.line(bc_str))?;
 
             if purity.target_purity() < config.min_purity {
+                write!(bad_assign, "{}\tPurity\t{:.02}\n",
+                       bc_str, purity.target_purity())?;
                 Fate::NoPurity
             } else {
                 if let ReadAssign::Match(assign) = purity.primary_assign() {
@@ -201,16 +197,20 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
 
                     if (assign.pos() == config.align_start as i32)
                         && (assign.is_reverse() == config.is_reverse)
-                        && assign.is_cigar_perfect(config.align_len as u32)
-                        && assign.is_md_perfect(config.align_len as u32)
+                        && assign.is_cigar_perfect()
+                        && assign.is_md_perfect()
                     {
                         write!(good_assign, "{}\t{}\n",
                                bc_str, assign.target(&targets))?;
                         Fate::Good
                     } else {
+                        write!(bad_assign, "{}\tFidelity\t{}\n",
+                               bc_str, assign.field())?;
                         Fate::NoFidelity
                     }
                 } else {
+                    write!(bad_assign, "{}\tUnaligned\tN/A\n",
+                           bc_str)?;
                     Fate::NoMatch
                 }
             }
