@@ -37,6 +37,13 @@ impl ReadAssign {
             _ => false
         }
     }
+
+    pub fn tid(&self) -> Option<u32> {
+        match self {
+            ReadAssign::Match(am) => Some(am.tid()),
+            ReadAssign::NoMatch => None,
+        }
+    }
 }
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]

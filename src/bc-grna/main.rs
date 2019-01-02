@@ -112,12 +112,12 @@ fn main() {
              .help("Minimum (in any position) quality score to include read")
              .takes_value(true)
              .default_value("30"))
-        .arg(Arg::with_name("minpurity")
-             .long("min-purity")
+        .arg(Arg::with_name("mintargetpurity")
+             .long("min-target-purity")
              .value_name("PURITY")
              .help("Minimum fraction of reads that must align to the same guide")
              .takes_value(true)
-             .default_value("0.849"))
+             .default_value("0.901"))
         .get_matches();
     
     let config = Config {
@@ -131,7 +131,7 @@ fn main() {
 
         min_reads: value_t!(matches.value_of("minreads"), usize).unwrap_or_else(|e| e.exit()),
         min_qual: value_t!(matches.value_of("minqual"), u8).unwrap_or_else(|e| e.exit()),
-        min_purity: value_t!(matches.value_of("minpurity"), f64).unwrap_or_else(|e| e.exit()),
+        min_purity: value_t!(matches.value_of("mintargetpurity"), f64).unwrap_or_else(|e| e.exit()),
     };
 
     if let Err(ref e) = run(&config) {
@@ -192,7 +192,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
             let purity = Purity::new(qvec.iter())?;
             write!(purity_out, "{}\n", purity.line(bc_str))?;
 
-            if purity.purity() < config.min_purity {
+            if purity.target_purity() < config.min_purity {
                 Fate::NoPurity
             } else {
                 if let ReadAssign::Match(assign) = purity.primary_assign() {
