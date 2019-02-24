@@ -111,13 +111,16 @@ fn main() {
              .help("Minimum fraction of reads that must align to the same guide")
              .takes_value(true)
              .default_value("0.901"))
+        .arg(Arg::with_name("reverse")
+             .long("reverse")
+             .help("Alignment reverse strand"))
         .get_matches();
     
     let config = Config {
         bowtie_bam: PathBuf::from(matches.value_of("bambyname").unwrap()),
         align_start: value_t!(matches.value_of("alignstart"), usize).unwrap_or_else(|e| e.exit()),
 
-        is_reverse: false,
+        is_reverse: matches.is_present("reverse"),
         
         out_base: PathBuf::from(matches.value_of("outbase").unwrap()),
 
