@@ -21,7 +21,7 @@ path = "src/barcode_assign/lib.rs"
 
 [[bin]]
 name = "bc-seqs"
-path = "src/bc-seqs/main.rs"
+path = "src/bc_seqs.rs"
 
 [[bin]]
 name = "bc-align"
