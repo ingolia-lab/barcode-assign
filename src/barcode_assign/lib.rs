@@ -5,6 +5,7 @@ extern crate failure;
 extern crate rust_htslib;
 
 pub mod barcode_group;
+pub mod bc_count;
 pub mod bc_frag;
 pub mod bc_seqs;
 pub mod fastq_pair;

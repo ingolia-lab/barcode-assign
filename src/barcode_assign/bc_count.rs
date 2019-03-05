@@ -1,69 +1,17 @@
-extern crate bio;
-extern crate clap;
-
-#[macro_use]
-extern crate error_chain;
-
 use std::fs::File;
 use std::io::{self,Read,Write};
 use std::collections::HashMap;
 
 use bio::io::fastq;
-use clap::{Arg, App};
 
 #[derive(Debug)]
-struct Config {
-    barcode_fastq: String,
-    out_barcodes: String,
-    freq_filename: Option<String>,
+pub struct Config {
+    pub barcode_fastq: String,
+    pub out_barcodes: String,
+    pub freq_filename: Option<String>,
 }
 
-mod errors {
-    error_chain!{
-        foreign_links {
-            IO(::std::io::Error);
-            FromUtf8(::std::string::FromUtf8Error);
-            Utf8(::std::str::Utf8Error);
-        }
-    }
-}
-
-use errors::*;
-
-fn main() {
-    let matches = App::new("bc-count")
-        .version("1.0")
-        .author("Nick Ingolia <ingolia@berkeley.edu>")
-        .about("Count barcode sequences")
-        .arg(Arg::with_name("fastq")
-             .short("f")
-             .long("fastq")
-             .value_name("BARCODE-FQ")
-             .help("FastQ file of barcode sequences")
-             .takes_value(true)
-             .required(true))
-        .arg(Arg::with_name("output")
-             .short("o")
-             .long("output")
-             .value_name("OUTPUT-TXT")
-             .help("Tab-delimited text file of barcode counts")
-             .takes_value(true)
-             .required(true))
-        .get_matches();
-
-    let config = Config {
-        barcode_fastq: matches.value_of("fastq").unwrap().to_string(),
-        out_barcodes: matches.value_of("output").unwrap().to_string(),
-        freq_filename: None,
-    };
-
-    match run(config) {
-        Ok(_) => (),
-        Err(e) => panic!(e),
-    }
-}
-
-fn run(config: Config) -> Result<()> {
+pub fn bc_count(config: Config) -> Result<(), failure::Error> {
     let reader: Box<Read> = if config.barcode_fastq == "-" {
         Box::new(io::stdin())
     } else {
@@ -98,7 +46,7 @@ fn run(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize>) -> Result<()>
+fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize>) -> Result<(), failure::Error>
     where W: std::io::Write
 {
     let mut bcout = std::io::BufWriter::new(barcode_out);
@@ -113,7 +61,7 @@ fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize
     Ok(())
 }
 
-fn write_freq_table<W>(freq_out: W, barcode_counts: &HashMap<String, usize>) -> Result<()>
+fn write_freq_table<W>(freq_out: W, barcode_counts: &HashMap<String, usize>) -> Result<(), failure::Error>
     where W: std::io::Write
 {
     let mut fout = std::io::BufWriter::new(freq_out);
