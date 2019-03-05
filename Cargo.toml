@@ -10,13 +10,14 @@ itertools = "*"
 csv = "*"
 error-chain = "*"
 clap = "*"
+failure = "*"
 
 [profile.dev]
 opt-level = 3
 
 [lib]
 name = "barcode_assign"
-path = "src/barcode_assign.rs"
+path = "src/barcode_assign/lib.rs"
 
 [[bin]]
 name = "bc-seqs"
@@ -37,3 +38,7 @@ path = "src/bc-count/main.rs"
 [[bin]]
 name = "bc-grna"
 path = "src/bc-grna/main.rs"
+
+[[bin]]
+name = "bc-frag"
+path = "src/bc_frag.rs"

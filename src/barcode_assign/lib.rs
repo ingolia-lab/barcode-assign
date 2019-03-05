@@ -1,8 +1,10 @@
 #[macro_use]
 extern crate error_chain;
+extern crate failure;
 extern crate rust_htslib;
 
 pub mod barcode_group;
+pub mod bc_frag;
 
 pub mod errors {
     error_chain!{
