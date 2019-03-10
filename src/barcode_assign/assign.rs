@@ -3,8 +3,6 @@ use std::str;
 use rust_htslib::bam;
 use rust_htslib::bam::record::{Cigar,CigarString};
 
-use errors::*;
-
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub enum ReadAssign {
     NoMatch,
@@ -12,14 +10,14 @@ pub enum ReadAssign {
 }
 
 impl ReadAssign {
-    pub fn new(r: &bam::Record) -> Result<Self> {
+    pub fn new(r: &bam::Record) -> Result<Self,failure::Error> {
         if r.tid() < 0 {
             Ok( ReadAssign::NoMatch )
         } else {
-            let md_aux = r.aux(b"MD").ok_or_else(|| "No MD tag")?;
+            let md_aux = r.aux(b"MD").ok_or_else(|| failure::err_msg("No MD tag"))?;
             let md: Vec<u8> = match md_aux {
                 bam::record::Aux::String(md) => Ok( md.to_vec() ),
-                _ => Err("MD tag not a string")
+                _ => Err(failure::err_msg("MD tag not a string")),
             }?;
 
             let cigar = (*r.cigar()).clone();
@@ -84,7 +82,7 @@ impl AssignMatch {
         "barcode\ttid\tpos\tcigar\tmd".to_string()
     }
 
-    pub fn line(&self, bc_str: &str, targets: &[&str]) -> Result<String> {
+    pub fn line(&self, bc_str: &str, targets: &[&str]) -> Result<String, failure::Error> {
         Ok( format!("{}\t{}\t{}\t{:?}\t{}",
                     bc_str, self.target(&targets), self.pos(),
                     self.cigar_string(), str::from_utf8(self.md())?) )

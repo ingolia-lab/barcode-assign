@@ -2,9 +2,9 @@ extern crate bio;
 #[macro_use]
 extern crate clap;
 #[macro_use]
-extern crate error_chain;
 extern crate rust_htslib;
 extern crate barcode_assign;
+extern crate failure;
 
 use std::fs;
 
@@ -14,38 +14,15 @@ use std::path::PathBuf;
 use std::str;
 
 use clap::{Arg, App};
+use failure::Error;
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
 use barcode_assign::barcode_group::*;
 
-mod assign;
-mod depth;
-mod purity;
-
-use assign::*;
-use depth::*;
-use purity::*;
-
-mod errors {
-    error_chain!{
-        links {
-            BarcodeGroup(::barcode_assign::errors::Error, ::barcode_assign::errors::ErrorKind);
-        }
-        foreign_links {
-            IO(::std::io::Error);
-            FromUtf8(::std::string::FromUtf8Error);
-            Utf8(::std::str::Utf8Error);
-            BamRead(::rust_htslib::bam::ReadError);
-            BamReaderPath(::rust_htslib::bam::ReaderPathError);
-            BamWrite(::rust_htslib::bam::WriteError);
-            BamWriterPath(::rust_htslib::bam::WriterPathError);
-            Pileup(::rust_htslib::bam::pileup::PileupError);
-        }
-    }
-}
-
-use errors::*;
+use barcode_assign::assign::*;
+use barcode_assign::depth::*;
+use barcode_assign::purity::*;
 
 #[derive(Debug)]
 struct Config {
@@ -132,23 +109,15 @@ fn main() {
     if let Err(ref e) = run(&config) {
         println!("error: {}", e);
         
-        for e in e.iter().skip(1) {
-            println!("caused by: {}", e);
-        }
-        
-        if let Some(backtrace) = e.backtrace() {
-            println!("backtrace: {:?}", backtrace);
-        }
-        
         ::std::process::exit(1);
     }
 }
 
-fn run(config: &Config) -> Result<()> {
+fn run(config: &Config) -> Result<(), failure::Error> {
     barcode_to_grna(config)
 }
 
-fn barcode_to_grna(config: &Config) -> Result<()> {
+fn barcode_to_grna(config: &Config) -> Result<(), failure::Error> {
     let mut fates: HashMap<Fate,usize> = HashMap::new();
 
     let mut good_assign = fs::File::create(config.outfile("barcode-grna-good.txt"))?;
@@ -174,7 +143,7 @@ fn barcode_to_grna(config: &Config) -> Result<()> {
         .collect();
     let targets = targets_result?;
     
-    let barcode_groups = BarcodeGroups::new(&mut bam_reader)?;
+    let barcode_groups = BarcodeGroups::new_with_read_names(&mut bam_reader)?;
 
     for barcode_group in barcode_groups {
         let (bc, qall) = barcode_group?;

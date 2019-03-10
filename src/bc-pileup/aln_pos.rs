@@ -4,7 +4,6 @@ use std::str;
 use rust_htslib::bam::Reader;
 use rust_htslib::bam::pileup::{Indel,Alignment,Pileup,Pileups};
 
-use errors::*;
 use offset_vector::OffsetVector;
 
 /// Represents the sequence information from one alignment position
@@ -19,7 +18,7 @@ enum AlnReadPos {
 }
 
 impl AlnReadPos {
-    fn new(aln: &Alignment) -> Result<Self> {
+    fn new(aln: &Alignment) -> Result<Self, failure::Error> {
         if aln.is_refskip() || aln.is_del() {
             if let Indel::Ins(_) = aln.indel() {
                 bail!("Ins() at refskip position")
@@ -87,10 +86,10 @@ impl AlnPos {
 
     /// Add sequencing data from a `Pileup` alignment for the
     /// position.
-    pub fn add_pileup(&mut self, pile: &Pileup) -> Result<()> {
+    pub fn add_pileup(&mut self, pile: &Pileup) -> Result<(), failure::Error> {
         self.arps = pile.alignments().
             map(|a| AlnReadPos::new(&a)).
-            collect::<Result<Vec<AlnReadPos>>>()?;
+            collect::<Result<Vec<AlnReadPos>, failure::Error>>()?;
         Ok( () )
     }
 
@@ -256,11 +255,11 @@ impl OffsetVector<AlnPos> {
     /// `Pileup` for each position. The alignment will cover positions
     /// between `start` (0-based, inclusive) and `end` (0-based,
     /// exclusive).
-    pub fn new_aln(start: usize, end: usize, refseq: &[u8], pileups: Pileups<Reader>) -> Result<Self> {
+    pub fn new_aln(start: usize, end: usize, refseq: &[u8], pileups: Pileups<Reader>) -> Result<Self, failure::Error> {
         let mut aln_posns = Vec::new();
         
         for pos in start..end {
-            let refnt = refseq.get(pos).ok_or_else(|| format!("Pos {} out of bounds", pos))?;
+            let refnt = refseq.get(pos).ok_or_else(|| format_err!("Pos {} out of bounds", pos))?;
             aln_posns.push(AlnPos::new(*refnt));
         }
 

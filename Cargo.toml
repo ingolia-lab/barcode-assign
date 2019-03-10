@@ -8,7 +8,6 @@ bio = "*"
 rust-htslib = "*"
 itertools = "*"
 csv = "*"
-error-chain = "*"
 clap = "*"
 failure = "*"
 

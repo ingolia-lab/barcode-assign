@@ -1,15 +1,17 @@
 use rust_htslib::bam;
 
 use assign::ReadAssign;
-use errors::*;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub struct Purity {
     assign_counts: Vec<(ReadAssign,usize)>
 }    
-    
+
+// ZZZ Purity needs to account for mapping to different spots on the
+// same reference
+
 impl Purity {
-    pub fn new<'a, I>(r_iter: I) -> Result<Self>
+    pub fn new<'a, I>(r_iter: I) -> Result<Self, failure::Error>
         where I: Iterator<Item = &'a bam::Record>
     {
         let mut cts = Vec::new();

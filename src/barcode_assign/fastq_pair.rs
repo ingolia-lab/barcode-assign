@@ -2,7 +2,6 @@ extern crate bio;
 
 use std::io;
 use std::io::{Error, ErrorKind};
-use std::io::Write;
 use bio::io::fastq::Record;
 
 pub struct PairRecords<R: io::Read, S: io::Read> {

@@ -9,8 +9,6 @@ use std::str;
 use aln_pos::AlnCons;
 use trl::STD_CODONS;
 
-use errors::*;
-
 #[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
 pub struct NtMutn {
     pos: usize,
@@ -161,7 +159,7 @@ pub struct MutnAnalysis {
 }
 
 impl MutnAnalysis {
-    pub fn new(outdir: &Path, prefix: &str, exon_start: usize, exon_upstream: &[u8]) -> Result<Self> {
+    pub fn new(outdir: &Path, prefix: &str, exon_start: usize, exon_upstream: &[u8]) -> Result<Self, failure::Error> {
         let mut mutn_out = File::create(outdir.to_path_buf().join(prefix.to_string() + "barcode-mutations.txt"))?;
         let mut pept_mutn_out = File::create(outdir.to_path_buf().join(prefix.to_string() + "barcode-peptide-mutations.txt"))?;
         let mutn_barcodes = MutnBarcodes::new();
@@ -176,7 +174,7 @@ impl MutnAnalysis {
                           mutn_barcodes: mutn_barcodes })
     }
 
-    pub fn analyze_aln_cons(self: &mut Self, bc_str: &str, aln_cons: AlnCons) -> Result<()> {    
+    pub fn analyze_aln_cons(self: &mut Self, bc_str: &str, aln_cons: AlnCons) -> Result<(), failure::Error> {    
         let mut_posn = aln_cons.pos_iter().filter(|&(_pos,apc)| !apc.is_wildtype() && !apc.is_uncovered());
         let bc_rc = Rc::new(bc_str.to_owned());
         for (pos, apc) in mut_posn {

@@ -2,9 +2,10 @@ extern crate bio;
 #[macro_use]
 extern crate clap;
 #[macro_use]
-extern crate error_chain;
 extern crate rust_htslib;
 extern crate barcode_assign;
+#[macro_use]
+extern crate failure;
 
 use std::fs;
 
@@ -14,6 +15,7 @@ use std::str;
 
 use bio::io::fasta;
 use clap::{Arg, App};
+use failure::Error;
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
@@ -28,26 +30,6 @@ mod cov_stats;
 mod mutn;
 mod offset_vector;
 mod trl;
-
-mod errors {
-    error_chain!{
-        links {
-            BarcodeGroup(::barcode_assign::errors::Error, ::barcode_assign::errors::ErrorKind);
-        }
-        foreign_links {
-            IO(::std::io::Error);
-            FromUtf8(::std::string::FromUtf8Error);
-            Utf8(::std::str::Utf8Error);
-            BamRead(::rust_htslib::bam::ReadError);
-            BamReaderPath(::rust_htslib::bam::ReaderPathError);
-            BamWrite(::rust_htslib::bam::WriteError);
-            BamWriterPath(::rust_htslib::bam::WriterPathError);
-            Pileup(::rust_htslib::bam::pileup::PileupError);
-        }
-    }
-}
-
-use errors::*;
 
 #[derive(Debug)]
 struct Config {
@@ -157,25 +139,17 @@ fn main() {
     if let Err(ref e) = run(&config) {
         println!("error: {}", e);
         
-        for e in e.iter().skip(1) {
-            println!("caused by: {}", e);
-        }
-        
-        if let Some(backtrace) = e.backtrace() {
-            println!("backtrace: {:?}", backtrace);
-        }
-        
         ::std::process::exit(1);
     }
 }
 
-fn run(config: &Config) -> Result<()> {
+fn run(config: &Config) -> Result<(), failure::Error> {
     std::fs::create_dir(&config.outdir)?;
     let refrec = read_reference(&config.ref_fa)?;
     pileup_targets(config, &refrec)
 }
 
-fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
+fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<(), failure::Error> {
     let refseq = refrec.seq();
 
     let mut ref_cds = config.exon_upstream.clone();
@@ -197,7 +171,7 @@ fn pileup_targets(config: &Config, refrec: &fasta::Record) -> Result<()> {
     let header = bam::Header::from_template(bam_reader.header());
     let header_view = bam::HeaderView::from_header(&header);
     
-    let barcode_groups = BarcodeGroups::new(&mut bam_reader)?;
+    let barcode_groups = BarcodeGroups::new_with_read_names(&mut bam_reader)?;
 
     let reftid = match header_view.tid(refrec.id().as_bytes()) {
         Some(uid) => uid as i32,
@@ -276,7 +250,7 @@ fn median_qual(r: &bam::Record) -> u8 {
     quals.get(quals.len() / 2).map_or(0, |q| *q)
 }
 
-fn read_reference(ref_fa: &Path) -> Result<fasta::Record> {
+fn read_reference(ref_fa: &Path) -> Result<fasta::Record, failure::Error> {
     let mut reader = fasta::Reader::from_file(ref_fa)?;
     let mut rec = fasta::Record::new();
     reader.read(&mut rec)?;
