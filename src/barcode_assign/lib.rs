@@ -10,5 +10,6 @@ pub mod bc_frag;
 pub mod bc_seqs;
 pub mod depth;
 pub mod fastq_pair;
+pub mod frag_purity;
 pub mod purity;
 

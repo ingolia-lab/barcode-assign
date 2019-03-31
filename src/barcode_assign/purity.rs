@@ -1,16 +1,15 @@
+use std::collections::HashMap;
+
 use rust_htslib::bam;
 
-use assign::ReadAssign;
+use assign::{ReadAssign,AssignMatch,AssignPos};
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct Purity {
+pub struct GrnaPurity {
     assign_counts: Vec<(ReadAssign,usize)>
 }    
 
-// ZZZ Purity needs to account for mapping to different spots on the
-// same reference
-
-impl Purity {
+impl GrnaPurity {
     pub fn new<'a, I>(r_iter: I) -> Result<Self, failure::Error>
         where I: Iterator<Item = &'a bam::Record>
     {
@@ -33,7 +32,7 @@ impl Purity {
         
         cts.sort_by_key(|&(ref _a, ref n)| - (*n as isize));
         
-        Ok( Purity { assign_counts: cts } )
+        Ok( GrnaPurity { assign_counts: cts } )
     }
 
     pub fn primary_assign(&self) -> ReadAssign {
@@ -121,4 +120,3 @@ impl Purity {
                 self.n_other_target_match(), self.n_no_match())
     }
 }
-

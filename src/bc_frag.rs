@@ -76,7 +76,7 @@ fn get_cli() -> Result<CLI, failure::Error> {
         outbase: matches.value_of("outbase").unwrap().to_string(),
         minreads: matches.value_of("minreads").unwrap().to_string(),
         minqual: matches.value_of("minqual").unwrap().to_string(),
-        minpurity: matches.value_of("minpurity").unwrap().to_string(),
+        minpurity: matches.value_of("mintargetpurity").unwrap().to_string(),
         fwd_strand: None,
         position: None,
     })

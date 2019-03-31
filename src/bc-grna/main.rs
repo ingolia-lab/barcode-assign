@@ -129,7 +129,7 @@ fn barcode_to_grna(config: &Config) -> Result<(), failure::Error> {
     write!(depth_out, "{}\n", Depth::header())?;
 
     let mut purity_out = fs::File::create(config.outfile("barcode-purity.txt"))?;
-    write!(purity_out, "{}\n", Purity::header())?;
+    write!(purity_out, "{}\n", GrnaPurity::header())?;
     
     let mut fidelity_out = fs::File::create(config.outfile("barcode-fidelity.txt"))?;
     write!(fidelity_out, "{}\n", AssignMatch::header())?;
@@ -155,7 +155,7 @@ fn barcode_to_grna(config: &Config) -> Result<(), failure::Error> {
         let fate = if depth.n_good() < config.min_reads {
             Fate::NoDepth
         } else {
-            let purity = Purity::new(qvec.iter())?;
+            let purity = GrnaPurity::new(qvec.iter())?;
             write!(purity_out, "{}\n", purity.line(bc_str))?;
 
             if purity.target_purity() < config.min_purity {

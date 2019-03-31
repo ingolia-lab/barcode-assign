@@ -12,6 +12,7 @@ use rust_htslib::bam::Read as BamRead;
 use assign::*;
 use barcode_group::*;
 use depth::*;
+use frag_purity::*;
 use purity::*;
 
 pub struct CLI {
@@ -72,6 +73,8 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
     let mut good_assign = fs::File::create(config.outfile("barcode-good-assign.txt"))?;
     write!(good_assign, "barcode\ttarget\n")?;
 
+    let mut good_assign_bed = fs::File::create(config.outfile("barcode-good-assign.bed"))?;
+
     let mut any_assign = fs::File::create(config.outfile("barcode-any-assign.txt"))?;
     write!(any_assign, "barcode\n")?;
 
@@ -82,7 +85,7 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
     write!(depth_out, "{}\n", Depth::header())?;
 
     let mut purity_out = fs::File::create(config.outfile("barcode-purity.txt"))?;
-    write!(purity_out, "{}\n", Purity::header())?;
+    write!(purity_out, "{}\n", GrnaPurity::header())?;
     
     let mut fidelity_out = fs::File::create(config.outfile("barcode-fidelity.txt"))?;
     write!(fidelity_out, "{}\n", AssignMatch::header())?;
@@ -107,40 +110,31 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
         let fate = if depth.n_good() < config.min_reads {
             Fate::NoDepth
         } else {
-            let purity = Purity::new(qvec.iter())?;
-            write!(purity_out, "{}\n", purity.line(bc_str))?;
+            let purity = FragPurity::new(qvec.iter());
 
-            if purity.target_purity() < config.min_purity {
-                write!(bad_assign, "{}\tPurity\t{:.02}\n",
-                       bc_str, purity.target_purity())?;
-                Fate::NoPurity
-            } else {
-                if let ReadAssign::Match(assign) = purity.primary_assign() {
-                    write!(fidelity_out, "{}\n",
-                           assign.line(bc_str, &targets)?)?;
+            write!(purity_out, "{}\t{}\n", bc_str, purity.line(&targets))?;
 
-                    if !assign.is_cigar_perfect()
-                        || !assign.is_md_perfect()
-                    {
-                        write!(bad_assign, "{}\tAlignFidelity\t{}\n",
-                               bc_str, assign.field())?;
-                        Fate::NoAlignFidelity
-                    } else if config.position.map_or(false, |pos| assign.pos() != pos)
-                        || config.fwd_strand.map_or(false, |fwd_strand| fwd_strand == assign.is_reverse())
-                    {
-                        write!(bad_assign, "{}\tPosFidelity\t{}\n",
-                               bc_str, assign.field())?;
-                        Fate::NoPosFidelity
-                    } else { 
-                        write!(good_assign, "{}\t{}\n",
-                               bc_str, assign.target(&targets))?;
-                        Fate::Good
-                    }
+            if let Some(ap) = purity.primary_pos() {
+                if purity.align_purity() < config.min_purity {
+                    write!(bad_assign, "{}\tPurity\t{:.02}\n",
+                           bc_str, purity.align_purity())?;
+                    Fate::NoPurity
                 } else {
-                    write!(bad_assign, "{}\tUnaligned\tN/A\n",
-                           bc_str)?;
-                    Fate::NoMatch
+                    // Get full alignments!
+                    write!(good_assign, "{}\t{}:{}{}\n",
+                           bc_str, ap.target(&targets), ap.pos(), ap.strand_chr())?;
+                    write!(good_assign_bed, "{}\t{}\t{}\t{}\t{}\t{}\n",
+                           ap.target(&targets),
+                           ap.pos(),
+                           ap.pos() as u32 + 1,
+                           bc_str,
+                           purity.n_primary(),
+                           ap.strand_chr())?;
+                    Fate::Good
                 }
+            } else {
+                write!(bad_assign, "{}\tUnaligned\t{:.02}\n", bc_str, purity.read_purity())?;
+                Fate::NoMatch
             }
         };
 
