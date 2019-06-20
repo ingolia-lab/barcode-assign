@@ -14,6 +14,7 @@ use std::path::{Path,PathBuf};
 use std::str;
 
 use bio::io::fasta;
+use bio::io::fasta::FastaRead;
 //use bio::io::fasta::FastaRead;
 use clap::{Arg, App};
 use failure::Error;
