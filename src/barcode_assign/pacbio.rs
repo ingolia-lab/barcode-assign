@@ -2,16 +2,35 @@ use bio::pattern_matching::myers::Myers;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub struct LibConf {
-    frag_match: MatchConf,
-    barcode_match: MatchConf,
+    frag_matcher: MatchConf,
+    barcode_matcher: MatchConf,
     barcode_rev: bool,
 }
 
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub struct LibMatchResult<'a> {
+    pub frag_match: MatchResult<'a>,
+    pub barcode_match: MatchResult<'a>,
+}
+    
 impl LibConf {
-    pub fn new(frag_match: MatchConf, barcode_match: MatchConf, barcode_rev: bool) -> Self {
-        LibConf { frag_match: frag_match,
-                  barcode_match: barcode_match,
+    pub fn new(frag_matcher: MatchConf, barcode_matcher: MatchConf, barcode_rev: bool) -> Self {
+        LibConf { frag_matcher: frag_matcher,
+                  barcode_matcher: barcode_matcher,
                   barcode_rev: barcode_rev }
+    }
+
+    pub fn best_match<'a>(&self, target: &'a [u8]) -> Option<LibMatchResult<'a>> {
+        if let Some(barcode_match) = self.barcode_matcher.best_match(target) {
+            if let Some(frag_match) = self.frag_matcher.best_match(target) {
+                Some(LibMatchResult{frag_match: frag_match,
+                                    barcode_match: barcode_match})
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -22,6 +41,7 @@ pub struct MatchConf {
     max_errors: u8
 }
 
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub struct MatchResult<'a> {
     pub before_match: (usize, usize, u8),
     pub after_match: (usize, usize, u8),
@@ -56,5 +76,19 @@ impl MatchConf {
     }
 }
     
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn perfect_match() {
+        let match_one = MatchConf::new(b"ACGTACGT", b"CAGTCAGT", 0);
 
+        //              01234567890123456789012345678
+        let query_a = b"CTAACGTACGTTTAATTAACAGTCAGTAA";
+        let res = match_one.best_match(query_a);
+        assert_eq!(res, Some(MatchResult{before_match:(3, 11, 0),
+                                         after_match: (19, 27, 0),
+                                         insert: &query_a[11..19]}));
+    }
+}
