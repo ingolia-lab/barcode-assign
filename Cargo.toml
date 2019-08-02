@@ -44,4 +44,8 @@ path = "src/bc_frag.rs"
 
 [[bin]]
 name = "bc-pbr"
-path = "src/bc-pbr/main.rs"
+path = "src/bc-pacbio/bc-pbr.rs"
+
+[[bin]]
+name = "bc-pbj"
+path = "src/bc-pacbio/bc-pbj.rs"
