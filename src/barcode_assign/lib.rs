@@ -11,5 +11,6 @@ pub mod bc_seqs;
 pub mod depth;
 pub mod fastq_pair;
 pub mod frag_purity;
+pub mod pacbio;
 pub mod purity;
 

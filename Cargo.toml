@@ -41,3 +41,7 @@ path = "src/bc-grna/main.rs"
 [[bin]]
 name = "bc-frag"
 path = "src/bc_frag.rs"
+
+[[bin]]
+name = "bc-pbr"
+path = "src/bc-pbr/main.rs"
