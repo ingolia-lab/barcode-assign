@@ -1,3 +1,4 @@
+use bio::alphabets::dna;
 use bio::pattern_matching::myers::Myers;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
@@ -7,12 +8,6 @@ pub struct LibConf {
     barcode_rev: bool,
 }
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct LibMatchResult<'a> {
-    pub frag_match: MatchResult<'a>,
-    pub barcode_match: MatchResult<'a>,
-}
-    
 impl LibConf {
     pub fn new(frag_matcher: MatchConf, barcode_matcher: MatchConf, barcode_rev: bool) -> Self {
         LibConf { frag_matcher: frag_matcher,
@@ -20,11 +15,12 @@ impl LibConf {
                   barcode_rev: barcode_rev }
     }
 
-    pub fn best_match<'a>(&self, target: &'a [u8]) -> Option<LibMatchResult<'a>> {
+    pub fn best_match<'a>(&self, target: &'a [u8]) -> Option<LibMatch<'a>> {
         if let Some(barcode_match) = self.barcode_matcher.best_match(target) {
             if let Some(frag_match) = self.frag_matcher.best_match(target) {
-                Some(LibMatchResult{frag_match: frag_match,
-                                    barcode_match: barcode_match})
+                Some(LibMatch{frag_match: frag_match,
+                                    barcode_match: barcode_match,
+                                    barcode_rev: self.barcode_rev})
             } else {
                 None
             }
@@ -35,17 +31,31 @@ impl LibConf {
 }
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub struct LibMatch<'a> {
+    frag_match: MatchResult<'a>,
+    barcode_match: MatchResult<'a>,
+    barcode_rev: bool,
+}
+    
+impl <'a> LibMatch<'a> {
+    pub fn frag_match(&self) -> &MatchResult<'a> { &self.frag_match }
+    pub fn barcode_match(&self) -> &MatchResult<'a> { &self.barcode_match }
+    pub fn barcode_rev(&self) -> bool { self.barcode_rev }
+
+    pub fn barcode_actual(&self) -> String {
+        if self.barcode_rev {
+            String::from_utf8_lossy(&dna::revcomp(self.barcode_match.insert)).to_string()
+        } else {
+            String::from_utf8_lossy(self.barcode_match.insert).to_string()
+        }
+    }
+}
+
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub struct MatchConf {
     before: Vec<u8>,
     after: Vec<u8>,
     max_errors: u8
-}
-
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct MatchResult<'a> {
-    pub before_match: (usize, usize, u8),
-    pub after_match: (usize, usize, u8),
-    pub insert: &'a [u8],
 }
 
 impl MatchConf {
@@ -75,7 +85,21 @@ impl MatchConf {
         }
     }
 }
-    
+
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub struct MatchResult<'a> {
+    pub before_match: (usize, usize, u8),
+    pub after_match: (usize, usize, u8),
+    pub insert: &'a [u8],
+}
+
+impl <'a> MatchResult<'a> {
+    pub fn score(&self) -> u8 { self.before_match.2 + self.after_match.2 }
+
+    pub fn insert_start(&self) -> usize { self.before_match.1 }
+    pub fn insert_end(&self) -> usize { self.after_match.0 }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
