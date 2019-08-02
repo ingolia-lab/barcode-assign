@@ -2,81 +2,120 @@ use bio::alphabets::dna;
 use bio::pattern_matching::myers::Myers;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct LibConf {
-    frag_matcher: MatchConf,
-    barcode_matcher: MatchConf,
+pub struct LibSpec {
+    frag_matcher: FlankMatchSpec,
+    barcode_matcher: FlankMatchSpec,
     barcode_rev: bool,
 }
 
-impl LibConf {
-    pub fn new(frag_matcher: MatchConf, barcode_matcher: MatchConf, barcode_rev: bool) -> Self {
-        LibConf { frag_matcher: frag_matcher,
+impl LibSpec {
+    pub fn new(frag_matcher: FlankMatchSpec, barcode_matcher: FlankMatchSpec, barcode_rev: bool) -> Self {
+        LibSpec { frag_matcher: frag_matcher,
                   barcode_matcher: barcode_matcher,
                   barcode_rev: barcode_rev }
     }
 
-    pub fn best_match<'a>(&self, target: &'a [u8]) -> Option<LibMatch<'a>> {
-        if let Some(barcode_match) = self.barcode_matcher.best_match(target) {
-            if let Some(frag_match) = self.frag_matcher.best_match(target) {
-                Some(LibMatch{frag_match: frag_match,
-                                    barcode_match: barcode_match,
-                                    barcode_rev: self.barcode_rev})
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+    pub fn best_match<'a>(&self, query: &'a [u8]) -> LibMatchOut<'a> {
+        LibMatchOut { frag: self.frag_matcher.best_match(query),
+                      barcode: self.barcode_matcher.best_match(query),
+                      barcode_rev: self.barcode_rev }
+    }
+}
+
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub struct LibMatchOut<'a> {
+    frag: FlankMatchOut<'a>,
+    barcode: FlankMatchOut<'a>,
+    barcode_rev: bool,
+}
+
+impl <'a> LibMatchOut<'a> {
+    pub fn frag_match(&self) -> &FlankMatchOut<'a> { &self.frag }
+    pub fn barcode_match(&self) -> &FlankMatchOut<'a> { &self.barcode }
+    pub fn barcode_rev(&self) -> bool { self.barcode_rev }
+
+    pub fn lib_match(&self) -> Option<LibMatch<'a>> {
+        self.frag.flank_match().and_then(|frag| {
+            self.barcode.flank_match().map(|barcode| {
+                LibMatch { frag: frag, barcode: barcode, barcode_rev: self.barcode_rev }
+            })
+        })
     }
 }
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub struct LibMatch<'a> {
-    frag_match: MatchResult<'a>,
-    barcode_match: MatchResult<'a>,
+    frag: FlankMatch<'a>,
+    barcode: FlankMatch<'a>,
     barcode_rev: bool,
 }
-    
+
 impl <'a> LibMatch<'a> {
-    pub fn frag_match(&self) -> &MatchResult<'a> { &self.frag_match }
-    pub fn barcode_match(&self) -> &MatchResult<'a> { &self.barcode_match }
+    pub fn frag_match(&self) -> &FlankMatch<'a> { &self.frag }
+    pub fn barcode_match(&self) -> &FlankMatch<'a> { &self.barcode }
     pub fn barcode_rev(&self) -> bool { self.barcode_rev }
+
+    pub fn between(&self) -> isize {
+        if self.frag.insert_start() > self.barcode.insert_end() {
+            self.frag.insert_start() as isize - self.barcode.insert_end() as isize
+        } else {
+            self.barcode.insert_start() as isize - self.frag.insert_end() as isize
+        }
+    }
 
     pub fn barcode_actual(&self) -> String {
         if self.barcode_rev {
-            String::from_utf8_lossy(&dna::revcomp(self.barcode_match.insert)).to_string()
+            String::from_utf8_lossy(&dna::revcomp(self.barcode.insert_seq())).to_string()
         } else {
-            String::from_utf8_lossy(self.barcode_match.insert).to_string()
+            String::from_utf8_lossy(self.barcode.insert_seq()).to_string()
         }
     }
 }
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct MatchConf {
+pub struct FlankMatchSpec {
     before: Vec<u8>,
     after: Vec<u8>,
     max_errors: u8
 }
 
-impl MatchConf {
+impl FlankMatchSpec {
     pub fn new(before: &[u8], after: &[u8], max_errors: u8) -> Self {
-        MatchConf { before: before.to_vec(), after: after.to_vec(), max_errors: max_errors }
+        FlankMatchSpec { before: before.to_vec(), after: after.to_vec(), max_errors: max_errors }
     }
 
-    pub fn best_match<'a>(&self, target: &'a [u8]) -> Option<MatchResult<'a>> {
+    pub fn best_match<'a>(&self, query: &'a [u8]) -> FlankMatchOut<'a> {
         let mut myers_before = Myers::<u64>::new(&self.before);
         let mut myers_after = Myers::<u64>::new(&self.after);
 
         // N.B. end coordinate is not included in match
-        let hit_before = myers_before.find_all(target, self.max_errors).by_ref().min_by_key(|&(_, _, dist)| dist);
-        if let Some((before_start, before_end, before_dist)) = hit_before {
-            let rest = target.split_at(before_end).1;
-            
-            let hit_after = myers_after.find_all(rest, self.max_errors - before_dist).by_ref().min_by_key(|&(_, _, dist)| dist);
-            if let Some((rest_after_start, rest_after_end, after_dist)) = hit_after {
-                Some(MatchResult{before_match: (before_start, before_end, before_dist),
-                                 after_match: (before_end + rest_after_start, before_end + rest_after_end, after_dist),
-                                 insert: rest.split_at(rest_after_start).0})
+        let best_before = myers_before.find_all(query, self.max_errors).by_ref().min_by_key(|&(_, _, dist)| dist);
+        let best_after = myers_after.find_all(query, self.max_errors).by_ref().min_by_key(|&(_, _, dist)| dist);
+
+        FlankMatchOut { before: best_before, after: best_after, query: query }
+    }
+}
+
+/// Attempted alignment between flanking constant sequences and a
+/// target query. Either of the flanking sequence matches may fail.
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub struct FlankMatchOut<'a> {
+    before: Option<(usize, usize, u8)>,
+    after: Option<(usize, usize, u8)>,
+    query: &'a [u8],
+}
+
+impl <'a> FlankMatchOut<'a> {
+    /// Returns the successful match, or `None` if either the before
+    /// or after match failed.
+    pub fn flank_match(&self) -> Option<FlankMatch<'a>> {
+        if let Some(before) = self.before {
+            if let Some(after) = self.after {
+                if before.1 <= after.0 {
+                    Some(FlankMatch { before: before, after: after, query: self.query })
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -86,18 +125,38 @@ impl MatchConf {
     }
 }
 
+/// Successful alignment between flanking constant sequences and a
+/// target query.
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub struct MatchResult<'a> {
-    pub before_match: (usize, usize, u8),
-    pub after_match: (usize, usize, u8),
-    pub insert: &'a [u8],
+pub struct FlankMatch<'a> {
+    before: (usize, usize, u8),
+    after: (usize, usize, u8),
+    query: &'a [u8],
 }
 
-impl <'a> MatchResult<'a> {
-    pub fn score(&self) -> u8 { self.before_match.2 + self.after_match.2 }
+impl <'a> FlankMatch<'a> {
+    /// Returns the total score (edit distance) of the alignments
+    /// between the before and after flanking sequences and the query.
+    pub fn score(&self) -> u8 { self.before.2 + self.after.2 }
 
-    pub fn insert_start(&self) -> usize { self.before_match.1 }
-    pub fn insert_end(&self) -> usize { self.after_match.0 }
+    /// Returns the starting position of the insert sequence in the
+    /// query.
+    pub fn insert_start(&self) -> usize { self.before.1 }
+
+    /// Returns the ending position of the insert sequence in the
+    /// query, *non*-inclusive.
+    pub fn insert_end(&self) -> usize { self.after.0 }
+
+    /// Returns the insert sequence.
+    pub fn insert_seq(&self) -> &[u8] { &self.query[self.before.1..self.after.0] }
+
+    /// Returns the query sequence that matched the constant sequence
+    /// before the insert.
+    pub fn before_seq(&self) -> &[u8] { &self.query[self.before.0..self.before.1] }
+
+    /// Returns the query sequence that matched the constant sequence
+    /// after the insert.
+    pub fn after_seq(&self) -> &[u8] { &self.query[self.after.0..self.after.1] }
 }
 
 #[cfg(test)]
@@ -106,13 +165,14 @@ mod tests {
 
     #[test]
     fn perfect_match() {
-        let match_one = MatchConf::new(b"ACGTACGT", b"CAGTCAGT", 0);
+        let match_one = FlankMatchSpec::new(b"ACGTACGT", b"CAGTCAGT", 0);
 
         //              01234567890123456789012345678
         let query_a = b"CTAACGTACGTTTAATTAACAGTCAGTAA";
-        let res = match_one.best_match(query_a);
-        assert_eq!(res, Some(MatchResult{before_match:(3, 11, 0),
-                                         after_match: (19, 27, 0),
-                                         insert: &query_a[11..19]}));
+        let m = match_one.best_match(query_a).flank_match().unwrap();
+        assert_eq!(m.score(), 0);
+        assert_eq!(m.insert_start(), 11);
+        assert_eq!(m.insert_end(), 19);
+        assert_eq!(m.insert_seq(), &query_a[11..19]);
     }
 }
