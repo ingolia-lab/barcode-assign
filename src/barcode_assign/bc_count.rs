@@ -1,6 +1,6 @@
-use std::fs::File;
-use std::io::{self,Read,Write};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, Read, Write};
 
 use bio::io::fastq;
 
@@ -42,15 +42,19 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
         let mut freq_writer = File::create(freq_filename)?;
         write_freq_table(freq_writer, &barcode_counts)?;
     }
-    
+
     Ok(())
 }
 
-fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize>) -> Result<(), failure::Error>
-    where W: std::io::Write
+fn write_barcode_table<W>(
+    barcode_out: W,
+    barcode_counts: &HashMap<String, usize>,
+) -> Result<(), failure::Error>
+where
+    W: std::io::Write,
 {
     let mut bcout = std::io::BufWriter::new(barcode_out);
-    
+
     for (barcode, count) in barcode_counts.iter() {
         bcout.write(barcode.as_bytes())?;
         bcout.write("\t".as_bytes())?;
@@ -61,8 +65,12 @@ fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize
     Ok(())
 }
 
-fn write_freq_table<W>(freq_out: W, barcode_counts: &HashMap<String, usize>) -> Result<(), failure::Error>
-    where W: std::io::Write
+fn write_freq_table<W>(
+    freq_out: W,
+    barcode_counts: &HashMap<String, usize>,
+) -> Result<(), failure::Error>
+where
+    W: std::io::Write,
 {
     let mut fout = std::io::BufWriter::new(freq_out);
 
@@ -72,14 +80,13 @@ fn write_freq_table<W>(freq_out: W, barcode_counts: &HashMap<String, usize>) -> 
         let freq_count = freq_counts.entry(freq).or_insert(0);
         *freq_count += 1;
     }
-    
+
     let mut freqs: Vec<usize> = freq_counts.keys().map(|&&k| k).collect();
     freqs.sort();
 
     for freq in freqs {
         write!(fout, "{}\t{}\n", freq, freq_counts.get(&freq).unwrap_or(&0))?;
     }
-    
+
     Ok(())
 }
-

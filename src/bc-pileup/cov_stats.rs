@@ -1,30 +1,35 @@
 use std::cmp::min;
 use std::collections::HashSet;
-use std::fmt::{self,Display,Formatter};
+use std::fmt::{self, Display, Formatter};
 use std::iter::repeat;
 
 use rust_htslib::bam;
 
-use aln_pos::{AlnPos,AlnPosCons};
-use offset_vector::{OffsetVector};
+use aln_pos::{AlnPos, AlnPosCons};
+use offset_vector::OffsetVector;
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord,Copy)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub enum CoverClass {
-    Good, Gapped, Heterog,
+    Good,
+    Gapped,
+    Heterog,
 }
 
-impl Display for CoverClass
-{
+impl Display for CoverClass {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", match *self {
-            CoverClass::Good => "Good",
-            CoverClass::Gapped => "Gapped",
-            CoverClass::Heterog => "Heterog",
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                CoverClass::Good => "Good",
+                CoverClass::Gapped => "Gapped",
+                CoverClass::Heterog => "Heterog",
+            }
+        )
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Cover {
     wildtype: usize,
     mutant: usize,
@@ -34,9 +39,15 @@ pub struct Cover {
 
 impl Cover {
     pub fn new<'a, I>(aln_cons: I, _covstart: usize, _covend: usize) -> Self
-        where I: Iterator<Item=(usize,&'a AlnPosCons)>
+    where
+        I: Iterator<Item = (usize, &'a AlnPosCons)>,
     {
-        let mut cover = Cover { wildtype: 0, heterog: 0, none: 0, mutant: 0 };
+        let mut cover = Cover {
+            wildtype: 0,
+            heterog: 0,
+            none: 0,
+            mutant: 0,
+        };
         for (_pos, apc) in aln_cons {
             if apc.is_wildtype() {
                 cover.wildtype += 1;
@@ -47,7 +58,7 @@ impl Cover {
             } else {
                 panic!("Unclassifiable AlnPosCons {:?}\n", apc);
             }
-            
+
             if apc.is_heterog() {
                 cover.heterog += 1;
             }
@@ -55,16 +66,24 @@ impl Cover {
         cover
     }
 
-    pub fn wildtype(&self) -> usize { self.wildtype }
-    pub fn heterog(&self) -> usize { self.heterog }
-    pub fn none(&self) -> usize { self.none }
-    pub fn mutant(&self) -> usize { self.mutant }
+    pub fn wildtype(&self) -> usize {
+        self.wildtype
+    }
+    pub fn heterog(&self) -> usize {
+        self.heterog
+    }
+    pub fn none(&self) -> usize {
+        self.none
+    }
+    pub fn mutant(&self) -> usize {
+        self.mutant
+    }
 
-    pub fn classify(&self, max_none: usize, max_heterog: usize) -> CoverClass { 
+    pub fn classify(&self, max_none: usize, max_heterog: usize) -> CoverClass {
         if self.none > max_none {
             CoverClass::Gapped
-        } else if self.heterog > max_heterog { 
-            CoverClass::Heterog 
+        } else if self.heterog > max_heterog {
+            CoverClass::Heterog
         } else {
             CoverClass::Good
         }
@@ -84,7 +103,7 @@ impl ReadStartStats {
     /// Creates a new read start tabulator for a sequence of a
     /// specified length.
     pub fn new(len: usize) -> Self {
-        ReadStartStats{
+        ReadStartStats {
             starts: vec![0; len],
             nom_cover: vec![0; len],
         }
@@ -93,11 +112,12 @@ impl ReadStartStats {
     /// Increment read start counts for all distinct starts in the
     /// collection of `rust_htslib::bam::Record` objects.
     pub fn add_read_group<'a, I>(&mut self, record_iter: I) -> (u32, u32)
-        where I: Iterator<Item=&'a bam::Record>
+    where
+        I: Iterator<Item = &'a bam::Record>,
     {
         let mut seen = HashSet::new();
         let mut nomcov = vec![0; self.nom_cover.len()];
-        
+
         for r in record_iter {
             let pos = r.pos() as usize;
             if !seen.contains(&pos) && (pos < self.starts.len()) {
@@ -110,7 +130,7 @@ impl ReadStartStats {
         }
 
         let mut nnomcov = 0;
-        for i in 0..(nomcov.len()-1) {
+        for i in 0..(nomcov.len() - 1) {
             nnomcov += nomcov[i];
             self.nom_cover[i] += nomcov[i];
         }
@@ -131,7 +151,7 @@ impl ReadStartStats {
             buf.push_str(&self.nom_cover[pos].to_string());
             buf.push('\n');
         }
-        
+
         buf
     }
 }
@@ -140,11 +160,15 @@ pub struct CoverStats(OffsetVector<CoverAt>);
 
 impl CoverStats {
     pub fn new(start: usize, len: usize, max: usize) -> Self {
-        CoverStats(OffsetVector::new(start, repeat(CoverAt::new(max)).take(len).collect()))
+        CoverStats(OffsetVector::new(
+            start,
+            repeat(CoverAt::new(max)).take(len).collect(),
+        ))
     }
 
     pub fn add_coverage<'a, I>(&mut self, pos_iter: I, het_fract: f64)
-        where I: Iterator<Item=(usize,&'a AlnPos)>
+    where
+        I: Iterator<Item = (usize, &'a AlnPos)>,
     {
         for (pos, ap) in pos_iter {
             if let Some(at) = self.0.get_mut(pos) {
@@ -166,26 +190,42 @@ impl CoverStats {
 
             buf.push('\n');
         }
-        
+
         buf
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct CoverAt {
     cover: Vec<u32>,
 }
 
 impl CoverAt {
-    fn new(max: usize) -> Self { CoverAt { cover: vec![0; max+1] } }
+    fn new(max: usize) -> Self {
+        CoverAt {
+            cover: vec![0; max + 1],
+        }
+    }
 
-    fn _max(&self) -> usize { self.cover.len() }
+    fn _max(&self) -> usize {
+        self.cover.len()
+    }
 
-    fn cover(&self) -> &[u32] { &self.cover }
+    fn cover(&self) -> &[u32] {
+        &self.cover
+    }
 
     fn add_coverage(&mut self, ap: &AlnPos, het_fract: f64) {
-        let cvg = if AlnPosCons::new(ap, het_fract).is_good() { ap.nttl() } else { 0 };
-        let idx = if cvg >= self.cover.len() { self.cover.len() - 1 } else { cvg };
+        let cvg = if AlnPosCons::new(ap, het_fract).is_good() {
+            ap.nttl()
+        } else {
+            0
+        };
+        let idx = if cvg >= self.cover.len() {
+            self.cover.len() - 1
+        } else {
+            cvg
+        };
         self.cover[idx] += 1;
     }
 }

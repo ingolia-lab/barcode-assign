@@ -1,8 +1,8 @@
 use std::ops::Index;
 use std::str;
 
+use rust_htslib::bam::pileup::{Alignment, Indel, Pileup, Pileups};
 use rust_htslib::bam::Reader;
-use rust_htslib::bam::pileup::{Indel,Alignment,Pileup,Pileups};
 
 use offset_vector::OffsetVector;
 
@@ -10,11 +10,11 @@ use offset_vector::OffsetVector;
 /// (column) for one aligned read (row) in the pileup MSA. This isn't
 /// necessarily a single nucleotide, due to potential insertions and
 /// deletions.
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum AlnReadPos {
     Nt(u8),
     NtTerm(u8),
-    NtIns(u8,Vec<u8>),
+    NtIns(u8, Vec<u8>),
 }
 
 impl AlnReadPos {
@@ -23,18 +23,21 @@ impl AlnReadPos {
             if let Indel::Ins(_) = aln.indel() {
                 bail!("Ins() at refskip position")
             } else {
-                Ok( AlnReadPos::Nt(if aln.is_del() { b'-' } else { b'N' }) )
+                Ok(AlnReadPos::Nt(if aln.is_del() { b'-' } else { b'N' }))
             }
         } else if let Some(qp) = aln.qpos() {
             let &nt = aln.record().seq().index(qp as usize);
             if aln.is_head() || aln.is_tail() {
-                Ok( AlnReadPos::NtTerm(nt) )
+                Ok(AlnReadPos::NtTerm(nt))
             } else if let Indel::Ins(l) = aln.indel() {
                 let start = (qp + 1) as usize;
                 let end = start + l as usize;
-                Ok( AlnReadPos::NtIns(nt, aln.record().seq().as_bytes()[start..end].to_owned()) )
+                Ok(AlnReadPos::NtIns(
+                    nt,
+                    aln.record().seq().as_bytes()[start..end].to_owned(),
+                ))
             } else {
-                Ok( AlnReadPos::Nt(nt) )
+                Ok(AlnReadPos::Nt(nt))
             }
         } else {
             bail!("Missing qpos() for non-del alignment")
@@ -43,13 +46,13 @@ impl AlnReadPos {
 
     fn nt(&self) -> u8 {
         match *self {
-            AlnReadPos::Nt(nt) | AlnReadPos::NtTerm(nt) | AlnReadPos::NtIns(nt,_) => nt
+            AlnReadPos::Nt(nt) | AlnReadPos::NtTerm(nt) | AlnReadPos::NtIns(nt, _) => nt,
         }
     }
-    
+
     fn is_ins(&self) -> bool {
         match *self {
-            AlnReadPos::NtIns(_,_) => true,
+            AlnReadPos::NtIns(_, _) => true,
             _ => false,
         }
     }
@@ -58,21 +61,21 @@ impl AlnReadPos {
         match *self {
             AlnReadPos::NtTerm(_) => true,
             _ => false,
-        }        
+        }
     }
 
     fn ins<'a>(&'a self) -> Option<&'a [u8]> {
         match self {
             &AlnReadPos::Nt(_) => None,
             &AlnReadPos::NtTerm(_) => None,
-            &AlnReadPos::NtIns(_,ref ins) => Some(&ins),
+            &AlnReadPos::NtIns(_, ref ins) => Some(&ins),
         }
     }
 }
 
 /// Represents the sequence information from one alignment position
 /// (column) for all aligned reads in a pileup MSA.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct AlnPos {
     refnt: u8,
     arps: Vec<AlnReadPos>,
@@ -81,23 +84,31 @@ pub struct AlnPos {
 impl AlnPos {
     /// Create a new `AlnPos` with a reference base and no read data.
     pub fn new(refnt: u8) -> Self {
-        AlnPos { refnt: refnt, arps: Vec::new() }
-    } 
+        AlnPos {
+            refnt: refnt,
+            arps: Vec::new(),
+        }
+    }
 
     /// Add sequencing data from a `Pileup` alignment for the
     /// position.
     pub fn add_pileup(&mut self, pile: &Pileup) -> Result<(), failure::Error> {
-        self.arps = pile.alignments().
-            map(|a| AlnReadPos::new(&a)).
-            collect::<Result<Vec<AlnReadPos>, failure::Error>>()?;
-        Ok( () )
+        self.arps = pile
+            .alignments()
+            .map(|a| AlnReadPos::new(&a))
+            .collect::<Result<Vec<AlnReadPos>, failure::Error>>()?;
+        Ok(())
     }
 
     /// Returns the reference base for the position
-    pub fn refnt(&self) -> u8 { self.refnt }
+    pub fn refnt(&self) -> u8 {
+        self.refnt
+    }
 
     /// Returns the read coverage depth for the position
-    pub fn nttl(&self) -> usize { self.arps.len() }
+    pub fn nttl(&self) -> usize {
+        self.arps.len()
+    }
 
     /// Returns true when all read sequences match the reference (and
     /// there is at least one read).
@@ -114,7 +125,7 @@ impl AlnPos {
         for arp in self.arps.iter() {
             let arp_nt = arp.nt();
             let mut extant = false;
-            for &mut(ref mut nt, ref mut cts) in counts.iter_mut() {
+            for &mut (ref mut nt, ref mut cts) in counts.iter_mut() {
                 if arp_nt == *nt {
                     *cts += 1;
                     extant = true;
@@ -128,14 +139,14 @@ impl AlnPos {
     }
 
     pub fn ins_counts(&self) -> Vec<(Vec<u8>, usize)> {
-        let mut counts: Vec<(Vec<u8>,usize)> = Vec::new();
+        let mut counts: Vec<(Vec<u8>, usize)> = Vec::new();
         for arp in self.arps.iter() {
             if arp.is_term() {
                 continue;
             }
             let arp_ins = arp.ins().unwrap_or("".as_bytes()).to_vec();
             let mut extant = false;
-            for &mut(ref mut ins, ref mut cts) in counts.iter_mut() {
+            for &mut (ref mut ins, ref mut cts) in counts.iter_mut() {
                 if arp_ins == *ins {
                     *cts += 1;
                     extant = true;
@@ -147,7 +158,7 @@ impl AlnPos {
         }
         counts
     }
-    
+
     pub fn seq_desc(&self) -> String {
         if self.arps.is_empty() {
             return ":0".to_owned();
@@ -161,16 +172,20 @@ impl AlnPos {
 
         if self.arps.iter().any(AlnReadPos::is_ins) {
             for (ins, count) in self.ins_counts().into_iter() {
-                desc = format!("{}:^{},{}", desc,
-                               str::from_utf8(ins.as_slice()).unwrap_or("???"), count);
+                desc = format!(
+                    "{}:^{},{}",
+                    desc,
+                    str::from_utf8(ins.as_slice()).unwrap_or("???"),
+                    count
+                );
             }
         }
-        
+
         desc
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct AlnPosCons {
     ref_nt: u8,
     cons_nt: u8,
@@ -181,49 +196,89 @@ pub struct AlnPosCons {
 impl AlnPosCons {
     pub fn new(aln_pos: &AlnPos, het_fract: f64) -> Self {
         let nt_cts = aln_pos.nt_counts();
-        if let Some(&(max_nt,max_nt_cts)) = nt_cts.iter().max_by_key(|&&(nt,cts)| (cts, nt == aln_pos.refnt())) {
-            let penult_cts = nt_cts.iter().filter(|&&(nt,_cts)| nt != max_nt)
-                .map(|&(_nt,cts)| cts).max().unwrap_or(0);
+        if let Some(&(max_nt, max_nt_cts)) = nt_cts
+            .iter()
+            .max_by_key(|&&(nt, cts)| (cts, nt == aln_pos.refnt()))
+        {
+            let penult_cts = nt_cts
+                .iter()
+                .filter(|&&(nt, _cts)| nt != max_nt)
+                .map(|&(_nt, cts)| cts)
+                .max()
+                .unwrap_or(0);
             let heterog_nt = ((penult_cts == 1) && (max_nt_cts == 1))
                 || ((penult_cts > 1) && ((penult_cts as f64) > het_fract * (max_nt_cts as f64)));
 
             let ins_cts = aln_pos.ins_counts();
-            let (cons_ins, heterog_ins) = 
-                if let Some(&(ref max_ins,max_ins_cts)) = ins_cts.iter().max_by_key(|&&(ref ins,cts)| (cts, ins.is_empty())) {
-                    let penult_cts = ins_cts.iter().filter(|&&(ref ins,_cts)| ins != max_ins)
-                        .map(|&(ref _ins,cts)| cts).max().unwrap_or(0);
-                    let heterog_ins = (penult_cts == max_ins_cts) || (penult_cts > 1);
-                    (max_ins.clone(), heterog_ins)
-                } else {
-                    (Vec::new(), false)
-                };
+            let (cons_ins, heterog_ins) = if let Some(&(ref max_ins, max_ins_cts)) = ins_cts
+                .iter()
+                .max_by_key(|&&(ref ins, cts)| (cts, ins.is_empty()))
+            {
+                let penult_cts = ins_cts
+                    .iter()
+                    .filter(|&&(ref ins, _cts)| ins != max_ins)
+                    .map(|&(ref _ins, cts)| cts)
+                    .max()
+                    .unwrap_or(0);
+                let heterog_ins = (penult_cts == max_ins_cts) || (penult_cts > 1);
+                (max_ins.clone(), heterog_ins)
+            } else {
+                (Vec::new(), false)
+            };
 
             let heterog = heterog_nt || heterog_ins;
 
-            AlnPosCons { ref_nt: aln_pos.refnt(), cons_nt: max_nt,
-                         heterog: heterog, cons_ins: cons_ins }
+            AlnPosCons {
+                ref_nt: aln_pos.refnt(),
+                cons_nt: max_nt,
+                heterog: heterog,
+                cons_ins: cons_ins,
+            }
         } else {
-            AlnPosCons { ref_nt: aln_pos.refnt(), cons_nt: b'_',
-                         heterog: false, cons_ins: Vec::new() }
+            AlnPosCons {
+                ref_nt: aln_pos.refnt(),
+                cons_nt: b'_',
+                heterog: false,
+                cons_ins: Vec::new(),
+            }
         }
-
     }
 
-    pub fn is_uncovered(&self) -> bool { self.cons_nt == b'_' }
-    pub fn is_wildtype(&self) -> bool { self.ref_nt == self.cons_nt && self.cons_ins.is_empty() }
-    pub fn is_mutant(&self) -> bool { !self.is_uncovered() && !self.is_wildtype() }
-    pub fn is_heterog(&self) -> bool { self.heterog }
+    pub fn is_uncovered(&self) -> bool {
+        self.cons_nt == b'_'
+    }
+    pub fn is_wildtype(&self) -> bool {
+        self.ref_nt == self.cons_nt && self.cons_ins.is_empty()
+    }
+    pub fn is_mutant(&self) -> bool {
+        !self.is_uncovered() && !self.is_wildtype()
+    }
+    pub fn is_heterog(&self) -> bool {
+        self.heterog
+    }
     #[allow(dead_code)]
-    pub fn is_insertion(&self) -> bool { !self.cons_ins.is_empty() }
-    pub fn is_frameshift(&self) -> bool { (self.cons_nt == b'-') || (!self.cons_ins.is_empty()) }
-    
-    pub fn is_good(&self) -> bool { !self.is_uncovered() & !self.is_heterog() }
+    pub fn is_insertion(&self) -> bool {
+        !self.cons_ins.is_empty()
+    }
+    pub fn is_frameshift(&self) -> bool {
+        (self.cons_nt == b'-') || (!self.cons_ins.is_empty())
+    }
 
-    pub fn ref_nt(&self) -> u8 { self.ref_nt }
+    pub fn is_good(&self) -> bool {
+        !self.is_uncovered() & !self.is_heterog()
+    }
+
+    pub fn ref_nt(&self) -> u8 {
+        self.ref_nt
+    }
     #[allow(dead_code)]
-    pub fn cons_nt(&self) -> u8 { self.cons_nt }
+    pub fn cons_nt(&self) -> u8 {
+        self.cons_nt
+    }
     #[allow(dead_code)]
-    pub fn cons_ins(&self) -> &[u8] { &self.cons_ins }
+    pub fn cons_ins(&self) -> &[u8] {
+        &self.cons_ins
+    }
 
     pub fn mutseq(&self) -> Vec<u8> {
         let mut mutseq = vec![self.cons_nt];
@@ -245,7 +300,6 @@ impl AlnPosCons {
     }
 }
 
-
 /// Multiple sequence alignment generated by the pileup of sequencing
 /// reads.
 pub type Aln = OffsetVector<AlnPos>;
@@ -255,11 +309,18 @@ impl OffsetVector<AlnPos> {
     /// `Pileup` for each position. The alignment will cover positions
     /// between `start` (0-based, inclusive) and `end` (0-based,
     /// exclusive).
-    pub fn new_aln(start: usize, end: usize, refseq: &[u8], pileups: Pileups<Reader>) -> Result<Self, failure::Error> {
+    pub fn new_aln(
+        start: usize,
+        end: usize,
+        refseq: &[u8],
+        pileups: Pileups<Reader>,
+    ) -> Result<Self, failure::Error> {
         let mut aln_posns = Vec::new();
-        
+
         for pos in start..end {
-            let refnt = refseq.get(pos).ok_or_else(|| format_err!("Pos {} out of bounds", pos))?;
+            let refnt = refseq
+                .get(pos)
+                .ok_or_else(|| format_err!("Pos {} out of bounds", pos))?;
             aln_posns.push(AlnPos::new(*refnt));
         }
 
@@ -273,7 +334,7 @@ impl OffsetVector<AlnPos> {
             }
         }
 
-        Ok( Self::new(start, aln_posns) )
+        Ok(Self::new(start, aln_posns))
     }
 
     /// Produces a verbose description of sequencing results for each
@@ -284,10 +345,16 @@ impl OffsetVector<AlnPos> {
     /// `AlnPos::seq_desc()`.
     pub fn seq_desc(&self) -> String {
         let mut desc = String::new();
-        
+
         for (pos, ap) in self.pos_iter() {
             if !ap.all_match() {
-                desc = format!("{}\t{}{:04}{}", desc, ap.refnt() as char, pos, ap.seq_desc());
+                desc = format!(
+                    "{}\t{}{:04}{}",
+                    desc,
+                    ap.refnt() as char,
+                    pos,
+                    ap.seq_desc()
+                );
             }
         }
 
@@ -310,4 +377,3 @@ impl OffsetVector<AlnPosCons> {
 //   no pileup entry for inserted nucleotides
 //   indel => Ins(len)
 //   aln.qpos() jumps by len+1 from one pileup to the next
-

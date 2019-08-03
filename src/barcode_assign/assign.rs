@@ -2,9 +2,9 @@ use std::fmt;
 use std::str;
 
 use rust_htslib::bam;
-use rust_htslib::bam::record::{Cigar,CigarString};
+use rust_htslib::bam::record::{Cigar, CigarString};
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct AssignPos {
     tid: u32,
     pos: i32,
@@ -16,51 +16,75 @@ impl AssignPos {
         if r.tid() < 0 {
             None
         } else {
-            Some(AssignPos { tid: r.tid() as u32, pos: r.pos(),
-                             is_reverse: r.is_reverse() })
+            Some(AssignPos {
+                tid: r.tid() as u32,
+                pos: r.pos(),
+                is_reverse: r.is_reverse(),
+            })
         }
     }
 
     #[allow(dead_code)]
-    pub fn tid(&self) -> u32 { self.tid }
-    
+    pub fn tid(&self) -> u32 {
+        self.tid
+    }
+
     pub fn target(&self, targets: &[&str]) -> String {
         targets.get(self.tid as usize).unwrap_or(&"???").to_string()
     }
 
-    pub fn pos(&self) -> i32 { self.pos }
-    pub fn is_reverse(&self) -> bool { self.is_reverse }
-    pub fn strand_chr(&self) -> char { if self.is_reverse { '-' } else { '+' } }
-}   
-
-impl fmt::Display for AssignPos {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}{}", self.tid, self.pos, if self.is_reverse { "-" } else { "+" })
+    pub fn pos(&self) -> i32 {
+        self.pos
+    }
+    pub fn is_reverse(&self) -> bool {
+        self.is_reverse
+    }
+    pub fn strand_chr(&self) -> char {
+        if self.is_reverse {
+            '-'
+        } else {
+            '+'
+        }
     }
 }
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+impl fmt::Display for AssignPos {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}:{}{}",
+            self.tid,
+            self.pos,
+            if self.is_reverse { "-" } else { "+" }
+        )
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ReadAssign {
     NoMatch,
-    Match(AssignMatch)
+    Match(AssignMatch),
 }
 
 impl ReadAssign {
-    pub fn new(r: &bam::Record) -> Result<Self,failure::Error> {
+    pub fn new(r: &bam::Record) -> Result<Self, failure::Error> {
         if let Some(assign_pos) = AssignPos::new(r) {
             let md_aux = r.aux(b"MD").ok_or_else(|| failure::err_msg("No MD tag"))?;
             let md: Vec<u8> = match md_aux {
-                bam::record::Aux::String(md) => Ok( md.to_vec() ),
+                bam::record::Aux::String(md) => Ok(md.to_vec()),
                 _ => Err(failure::err_msg("MD tag not a string")),
             }?;
 
             let cigar = (*r.cigar()).clone();
             let len = ReadAssign::cigar_string_len(&cigar);
-            
-            let assign_match = AssignMatch { assign_pos: assign_pos,
-                                             len: len, 
-                                             cigar: cigar, md: md };
-            Ok( ReadAssign::Match(assign_match) )
+
+            let assign_match = AssignMatch {
+                assign_pos: assign_pos,
+                len: len,
+                cigar: cigar,
+                md: md,
+            };
+            Ok(ReadAssign::Match(assign_match))
         } else {
             Ok(ReadAssign::NoMatch)
         }
@@ -83,7 +107,7 @@ impl ReadAssign {
             Cigar::Diff(ref l) => *l,
         }
     }
-    
+
     pub fn assign_match(&self) -> Option<&AssignMatch> {
         match self {
             ReadAssign::NoMatch => None,
@@ -94,7 +118,7 @@ impl ReadAssign {
     pub fn is_no_match(&self) -> bool {
         match self {
             ReadAssign::NoMatch => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -110,36 +134,56 @@ impl ReadAssign {
     }
 }
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct AssignMatch {
     assign_pos: AssignPos,
     len: u32,
     cigar: CigarString,
-    md: Vec<u8>
+    md: Vec<u8>,
 }
 
 impl AssignMatch {
     #[allow(dead_code)]
-    pub fn tid(&self) -> u32 { self.assign_pos.tid() }
-    
+    pub fn tid(&self) -> u32 {
+        self.assign_pos.tid()
+    }
+
     pub fn target(&self, targets: &[&str]) -> String {
         self.assign_pos.target(targets)
     }
 
-    pub fn pos(&self) -> i32 { self.assign_pos.pos() }
-    pub fn is_reverse(&self) -> bool { self.assign_pos.is_reverse() }
-    pub fn len(&self) -> u32 { self.len }
+    pub fn pos(&self) -> i32 {
+        self.assign_pos.pos()
+    }
+    pub fn is_reverse(&self) -> bool {
+        self.assign_pos.is_reverse()
+    }
+    pub fn len(&self) -> u32 {
+        self.len
+    }
 
-    pub fn assign_pos(&self) -> &AssignPos { &self.assign_pos }
-    
+    pub fn assign_pos(&self) -> &AssignPos {
+        &self.assign_pos
+    }
+
     #[allow(dead_code)]
-    pub fn cigar(&self) -> CigarString { self.cigar.clone() }
-    pub fn cigar_string(&self) -> String { self.cigar.to_string() }
-    pub fn md(&self) -> &[u8] { self.md.as_slice() }
+    pub fn cigar(&self) -> CigarString {
+        self.cigar.clone()
+    }
+    pub fn cigar_string(&self) -> String {
+        self.cigar.to_string()
+    }
+    pub fn md(&self) -> &[u8] {
+        self.md.as_slice()
+    }
 
     pub fn is_cigar_perfect(&self) -> bool {
         let CigarString(ref v) = self.cigar;
-        (v.len() == 1) && (match v[0] { Cigar::Match(_) => true, _ => false} )
+        (v.len() == 1)
+            && (match v[0] {
+                Cigar::Match(_) => true,
+                _ => false,
+            })
     }
 
     pub fn is_md_perfect(&self) -> bool {
@@ -151,14 +195,21 @@ impl AssignMatch {
     }
 
     pub fn line(&self, bc_str: &str, targets: &[&str]) -> Result<String, failure::Error> {
-        Ok( format!("{}\t{}\t{}\t{:?}\t{}",
-                    bc_str, self.target(&targets), self.pos(),
-                    self.cigar_string(), str::from_utf8(self.md())?) )
+        Ok(format!(
+            "{}\t{}\t{}\t{:?}\t{}",
+            bc_str,
+            self.target(&targets),
+            self.pos(),
+            self.cigar_string(),
+            str::from_utf8(self.md())?
+        ))
     }
 
     pub fn field(&self) -> String {
-        format!("{}:{}", self.cigar_string(), String::from_utf8_lossy(self.md()))
+        format!(
+            "{}:{}",
+            self.cigar_string(),
+            String::from_utf8_lossy(self.md())
+        )
     }
 }
-
-

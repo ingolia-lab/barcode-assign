@@ -23,14 +23,16 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
 
     let mut barcode_counts = HashMap::new();
 
-    let pair_records = fastq_pair::PairRecords::new(barcode_reader.records(), sequ_reader.records());
+    let pair_records =
+        fastq_pair::PairRecords::new(barcode_reader.records(), sequ_reader.records());
 
     for pair_result in pair_records {
         let (barcode_record, sequ_record) = pair_result?;
 
         let name = sequ_barcoded_name(&config, &mut barcode_counts, &barcode_record)?;
 
-        let named_record = fastq::Record::with_attrs(&name, None, sequ_record.seq(), sequ_record.qual());
+        let named_record =
+            fastq::Record::with_attrs(&name, None, sequ_record.seq(), sequ_record.qual());
 
         fastq_writer.write_record(&named_record)?;
     }
@@ -44,15 +46,19 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
         let mut freq_writer = File::create(freq_filename)?;
         write_freq_table(freq_writer, &barcode_counts)?;
     }
-    
+
     Ok(())
 }
 
-fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize>) -> Result<(), failure::Error>
-    where W: std::io::Write
+fn write_barcode_table<W>(
+    barcode_out: W,
+    barcode_counts: &HashMap<String, usize>,
+) -> Result<(), failure::Error>
+where
+    W: std::io::Write,
 {
     let mut bcout = std::io::BufWriter::new(barcode_out);
-    
+
     for (barcode, count) in barcode_counts.iter() {
         bcout.write(barcode.as_bytes())?;
         bcout.write("\t".as_bytes())?;
@@ -63,8 +69,12 @@ fn write_barcode_table<W>(barcode_out: W, barcode_counts: &HashMap<String, usize
     Ok(())
 }
 
-fn write_freq_table<W>(freq_out: W, barcode_counts: &HashMap<String, usize>) -> Result<(), failure::Error>
-    where W: std::io::Write
+fn write_freq_table<W>(
+    freq_out: W,
+    barcode_counts: &HashMap<String, usize>,
+) -> Result<(), failure::Error>
+where
+    W: std::io::Write,
 {
     let mut fout = std::io::BufWriter::new(freq_out);
 
@@ -74,23 +84,25 @@ fn write_freq_table<W>(freq_out: W, barcode_counts: &HashMap<String, usize>) -> 
         let freq_count = freq_counts.entry(freq).or_insert(0);
         *freq_count += 1;
     }
-    
+
     let mut freqs: Vec<usize> = freq_counts.keys().map(|&&k| k).collect();
     freqs.sort();
 
     for freq in freqs {
         write!(fout, "{}\t{}\n", freq, freq_counts.get(&freq).unwrap_or(&0))?;
     }
-    
+
     Ok(())
 }
 
-fn sequ_barcoded_name(_config: &Config, barcode_counts: &mut HashMap<String, usize>, barcode_record: &fastq::Record) -> Result<String, failure::Error>
-{
+fn sequ_barcoded_name(
+    _config: &Config,
+    barcode_counts: &mut HashMap<String, usize>,
+    barcode_record: &fastq::Record,
+) -> Result<String, failure::Error> {
     let barcode = String::from_utf8(barcode_record.seq().to_vec())?;
     let barcode_count = barcode_counts.entry(barcode.to_string()).or_insert(0);
     *barcode_count += 1;
 
     Ok(barcode + "_" + &barcode_count.to_string())
 }
-

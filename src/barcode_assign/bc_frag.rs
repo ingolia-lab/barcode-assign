@@ -48,14 +48,22 @@ impl Config {
             min_purity: f64::from_str(&cli.minpurity)?,
 
             fwd_strand: cli.fwd_strand,
-            position: cli.position.as_ref().map(|pos| i32::from_str(&pos)).transpose()?,
+            position: cli
+                .position
+                .as_ref()
+                .map(|pos| i32::from_str(&pos))
+                .transpose()?,
         })
     }
 
-    pub fn outfile<T>(&self, file_suffix: T) -> PathBuf 
-        where T: std::convert::AsRef<std::ffi::OsStr>
+    pub fn outfile<T>(&self, file_suffix: T) -> PathBuf
+    where
+        T: std::convert::AsRef<std::ffi::OsStr>,
     {
-        let mut filename = self.outbase.file_name().map_or_else(|| std::ffi::OsString::new(), |str| str.to_os_string());
+        let mut filename = self
+            .outbase
+            .file_name()
+            .map_or_else(|| std::ffi::OsString::new(), |str| str.to_os_string());
         filename.push(file_suffix);
         self.outbase.with_file_name(filename)
     }
@@ -68,7 +76,7 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
         bam::Reader::from_path(Path::new(&config.bambyname))?
     };
 
-    let mut fates: HashMap<Fate,usize> = HashMap::new();
+    let mut fates: HashMap<Fate, usize> = HashMap::new();
 
     let mut good_assign = fs::File::create(config.outfile("barcode-good-assign.txt"))?;
     write!(good_assign, "barcode\ttarget\n")?;
@@ -80,24 +88,26 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
 
     let mut bad_assign = fs::File::create(config.outfile("barcode-bad-assign.txt"))?;
     write!(bad_assign, "barcode\tDefect\tDetails\n")?;
-    
+
     let mut depth_out = fs::File::create(config.outfile("barcode-depth.txt"))?;
     write!(depth_out, "{}\n", Depth::header())?;
 
     let mut purity_out = fs::File::create(config.outfile("barcode-purity.txt"))?;
     write!(purity_out, "{}\n", GrnaPurity::header())?;
-    
+
     let mut fidelity_out = fs::File::create(config.outfile("barcode-fidelity.txt"))?;
     write!(fidelity_out, "{}\n", AssignMatch::header())?;
-    
+
     let header = bam::Header::from_template(input.header());
     let header_view = bam::HeaderView::from_header(&header);
 
-    let targets_result: std::result::Result<Vec<&str>,std::str::Utf8Error> = header_view.target_names().iter()
+    let targets_result: std::result::Result<Vec<&str>, std::str::Utf8Error> = header_view
+        .target_names()
+        .iter()
         .map(|name_u8| ::std::str::from_utf8(name_u8))
         .collect();
     let targets = targets_result?;
-    
+
     let barcode_groups = BarcodeGroups::new_with_read_names(&mut input)?;
 
     for barcode_group in barcode_groups {
@@ -106,7 +116,7 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
 
         let (qvec, depth) = filter_by_quality(qall, config.min_qual);
         write!(depth_out, "{}\n", depth.line(bc_str))?;
-        
+
         let fate = if depth.n_good() < config.min_reads {
             Fate::NoDepth
         } else {
@@ -116,24 +126,42 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
 
             if let Some(ap) = purity.primary_pos() {
                 if purity.align_purity() < config.min_purity {
-                    write!(bad_assign, "{}\tPurity\t{:.02}\n",
-                           bc_str, purity.align_purity())?;
+                    write!(
+                        bad_assign,
+                        "{}\tPurity\t{:.02}\n",
+                        bc_str,
+                        purity.align_purity()
+                    )?;
                     Fate::NoPurity
                 } else {
                     // Get full alignments!
-                    write!(good_assign, "{}\t{}:{}{}\n",
-                           bc_str, ap.target(&targets), ap.pos(), ap.strand_chr())?;
-                    write!(good_assign_bed, "{}\t{}\t{}\t{}\t{}\t{}\n",
-                           ap.target(&targets),
-                           ap.pos(),
-                           ap.pos() as u32 + 1,
-                           bc_str,
-                           purity.n_primary(),
-                           ap.strand_chr())?;
+                    write!(
+                        good_assign,
+                        "{}\t{}:{}{}\n",
+                        bc_str,
+                        ap.target(&targets),
+                        ap.pos(),
+                        ap.strand_chr()
+                    )?;
+                    write!(
+                        good_assign_bed,
+                        "{}\t{}\t{}\t{}\t{}\t{}\n",
+                        ap.target(&targets),
+                        ap.pos(),
+                        ap.pos() as u32 + 1,
+                        bc_str,
+                        purity.n_primary(),
+                        ap.strand_chr()
+                    )?;
                     Fate::Good
                 }
             } else {
-                write!(bad_assign, "{}\tUnaligned\t{:.02}\n", bc_str, purity.read_purity())?;
+                write!(
+                    bad_assign,
+                    "{}\tUnaligned\t{:.02}\n",
+                    bc_str,
+                    purity.read_purity()
+                )?;
                 Fate::NoMatch
             }
         };
@@ -142,20 +170,36 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
     }
 
     let mut fates_out = fs::File::create(config.outfile("barcode-fates.txt"))?;
-    write!(fates_out, "Good\t{}\n", fates.get(&Fate::Good).unwrap_or(&0))?;
-    write!(fates_out, "No Match\t{}\n", fates.get(&Fate::NoMatch).unwrap_or(&0))?;
-    write!(fates_out, "Mixed\t{}\n", fates.get(&Fate::NoPurity).unwrap_or(&0))?;
-    write!(fates_out, "Too Few\t{}\n", fates.get(&Fate::NoDepth).unwrap_or(&0))?;
-    
-    Ok( () )
+    write!(
+        fates_out,
+        "Good\t{}\n",
+        fates.get(&Fate::Good).unwrap_or(&0)
+    )?;
+    write!(
+        fates_out,
+        "No Match\t{}\n",
+        fates.get(&Fate::NoMatch).unwrap_or(&0)
+    )?;
+    write!(
+        fates_out,
+        "Mixed\t{}\n",
+        fates.get(&Fate::NoPurity).unwrap_or(&0)
+    )?;
+    write!(
+        fates_out,
+        "Too Few\t{}\n",
+        fates.get(&Fate::NoDepth).unwrap_or(&0)
+    )?;
+
+    Ok(())
 }
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum Fate {
     Good,
     NoAlignFidelity,
     NoPosFidelity,
     NoMatch,
     NoPurity,
-    NoDepth
+    NoDepth,
 }

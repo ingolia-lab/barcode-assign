@@ -51,24 +51,30 @@ fn get_cli() -> Result<CLI, failure::Error> {
                 .takes_value(true)
                 .required(true),
         )
-        .arg(Arg::with_name("minreads")
-             .long("min-reads")
-             .value_name("MINREADS")
-             .help("Minimum number of reads for good assignment")
-             .takes_value(true)
-             .default_value("3"))
-        .arg(Arg::with_name("minqual")
-             .long("min-qual")
-             .value_name("MINQUAL")
-             .help("Minimum (in any position) quality score to include read")
-             .takes_value(true)
-             .default_value("30"))
-        .arg(Arg::with_name("mintargetpurity")
-             .long("min-target-purity")
-             .value_name("PURITY")
-             .help("Minimum fraction of reads that must align to the same guide")
-             .takes_value(true)
-             .default_value("0.901"))
+        .arg(
+            Arg::with_name("minreads")
+                .long("min-reads")
+                .value_name("MINREADS")
+                .help("Minimum number of reads for good assignment")
+                .takes_value(true)
+                .default_value("3"),
+        )
+        .arg(
+            Arg::with_name("minqual")
+                .long("min-qual")
+                .value_name("MINQUAL")
+                .help("Minimum (in any position) quality score to include read")
+                .takes_value(true)
+                .default_value("30"),
+        )
+        .arg(
+            Arg::with_name("mintargetpurity")
+                .long("min-target-purity")
+                .value_name("PURITY")
+                .help("Minimum fraction of reads that must align to the same guide")
+                .takes_value(true)
+                .default_value("0.901"),
+        )
         .get_matches();
 
     Ok(CLI {
