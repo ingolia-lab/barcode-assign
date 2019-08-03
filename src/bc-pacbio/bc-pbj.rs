@@ -89,13 +89,15 @@ fn pacbio_join() -> Result<(), failure::Error> {
     let mut barcode_unambig_out = std::fs::File::create("barcode-assign-unambig.txt")?;
     let mut barcode_unique_out = std::fs::File::create("barcode-assign-unique.txt")?;
 
+    let empty = Vec::new();
+    
     for (&(ref barcode, ref library), &ref reads) in barcode_to_reads.iter() {
-        let aligns: Vec<Vec<bam::Record>> = reads
+        let aligns: Vec<&Vec<bam::Record>> = reads
             .iter()
             .map(|r| {
                 read_to_aligns
                     .get(r)
-                    .map_or(Vec::new(), |alns| alns.clone())
+                    .unwrap_or(&empty)
             })
             .collect();
 
@@ -164,7 +166,7 @@ fn align_sort_key(r: &bam::Record) -> (i32, i32) {
 
 const POS_TOL: i32 = 3;
 
-fn is_ambiguous(aligns: &Vec<Vec<bam::Record>>) -> bool {
+fn is_ambiguous(aligns: &Vec<&Vec<bam::Record>>) -> bool {
     fn align_equivalent(r0: &bam::Record, r1: &bam::Record) -> bool {
         r0.tid() == r1.tid() && (r0.pos() - r1.pos()).abs() < POS_TOL && r0.is_reverse() == r1.is_reverse()
     }
@@ -182,8 +184,11 @@ fn is_ambiguous(aligns: &Vec<Vec<bam::Record>>) -> bool {
     }
 }
 
-fn format_ambiguous(names: &Vec<String>, aligns: &Vec<Vec<bam::Record>>) -> Result<String, failure::Error> {
+fn format_ambiguous(names: &Vec<String>, aligns: &Vec<&Vec<bam::Record>>) -> Result<String, failure::Error> {
     fn format_read(names: &Vec<String>, alns: &Vec<bam::Record>) -> Result<String, failure::Error> {
+        if alns.len() == 0 {
+            return Ok("none".to_string());
+        }
         let terse_res: Result<Vec<_>,_> = alns.iter().map(|aln| { terse_align(names, aln) }).collect();
         Ok(terse_res?.join(";"))
     }
