@@ -37,8 +37,9 @@ fn main() {
     let fqin = fastq::Reader::from_file(&fastq_filename).unwrap();
 
     let mut frag_out = fasta::Writer::to_file("frags.fasta").unwrap();
-    let mut good_match_out = std::fs::File::create("barcodes.txt").unwrap();
-    let mut all_match_out = std::fs::File::create("reads.txt").unwrap();
+    let mut good_insert_out = std::fs::File::create("read-inserts-good.txt").unwrap();
+    let mut all_match_out = std::fs::File::create("read-matching-all.txt").unwrap();
+    let mut fates_out = std::fs::File::create("read-fates.txt").unwrap();
 
     for recres in fqin.records() {
         let rec = recres.unwrap();
@@ -66,6 +67,15 @@ fn main() {
             })
             .collect();
 
+        for (ref lib, ref strand, ref match_out) in lib_matches.iter() {
+            write!(all_match_out, "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                   read_id, lib, strand,
+                   match_out.barcode_match().before_match_desc(),
+                   match_out.barcode_match().after_match_desc(),
+                   match_out.frag_match().before_match_desc(),
+                   match_out.frag_match().after_match_desc()).unwrap();                   
+        }
+        
         let good_matches: Vec<(String, String, LibMatch)> = lib_matches
             .iter()
             .filter_map(|(name, strand, lib_match_out)| {
@@ -76,16 +86,16 @@ fn main() {
             .collect();
 
         if good_matches.len() == 0 {
-            write!(all_match_out, "{}\tNone\n", read_id).unwrap();
+            write!(fates_out, "{}\tNone\n", read_id).unwrap();
         } else if good_matches.len() == 1 {
             let (ref name, ref strand, ref lib_match) = good_matches[0];
-            write!(all_match_out, "{}\t{}\t{}\n", read_id, name, strand).unwrap();
+            write!(fates_out, "{}\t{}\t{}\n", read_id, name, strand).unwrap();
             let frag_seq = lib_match.frag_match().insert_seq();
             frag_out
                 .write(&format!("{}/0_{}", read_id, frag_seq.len()), None, frag_seq)
                 .unwrap();
             write!(
-                good_match_out,
+                good_insert_out,
                 "{}\t{}\t{}\t{}\n",
                 read_id,
                 name,
@@ -94,7 +104,7 @@ fn main() {
             )
             .unwrap();
         } else {
-            write!(all_match_out, "{}\tMulti\n", read_id).unwrap();
+            write!(fates_out, "{}\tMulti\n", read_id).unwrap();
         }
     }
 }

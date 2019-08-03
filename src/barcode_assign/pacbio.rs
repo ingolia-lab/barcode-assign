@@ -1,3 +1,5 @@
+use std::cmp::*;
+
 use bio::alphabets::dna;
 use bio::pattern_matching::myers::Myers;
 
@@ -141,6 +143,8 @@ pub struct FlankMatchOut<'a> {
     query: &'a [u8],
 }
 
+const DESC_LEN: usize = 10;
+
 impl<'a> FlankMatchOut<'a> {
     /// Returns the successful match, or `None` if either the before
     /// or after match failed.
@@ -161,6 +165,24 @@ impl<'a> FlankMatchOut<'a> {
             }
         } else {
             None
+        }
+    }
+
+    pub fn before_match_desc(&self) -> String {
+        if let Some((start, end, _score)) = self.before {
+            String::from_utf8_lossy(&self.query[max(DESC_LEN, end)-DESC_LEN..end].to_ascii_uppercase()).to_string() +
+                &String::from_utf8_lossy(&self.query[end..min(end + DESC_LEN, self.query.len())].to_ascii_lowercase()).to_string()
+        } else {
+            "N/A".to_string()
+        }
+    }
+    
+    pub fn after_match_desc(&self) -> String {
+        if let Some((start, end, _score)) = self.after {
+            String::from_utf8_lossy(&self.query[max(DESC_LEN, start)-DESC_LEN..start].to_ascii_lowercase()).to_string() +
+                &String::from_utf8_lossy(&self.query[start..min(start + DESC_LEN, self.query.len())].to_ascii_uppercase()).to_string()
+        } else {
+            "N/A".to_string()
         }
     }
 }
