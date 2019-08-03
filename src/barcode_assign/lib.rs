@@ -8,6 +8,7 @@ pub mod barcode_group;
 pub mod bc_count;
 pub mod bc_frag;
 pub mod bc_seqs;
+pub mod blasr;
 pub mod depth;
 pub mod fastq_pair;
 pub mod frag_purity;

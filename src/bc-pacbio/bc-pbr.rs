@@ -40,6 +40,8 @@ fn main() {
     for recres in fqin.records() {
         let rec = recres.unwrap();
 
+        let read_id = &rec.id()[0..rec.id().rfind("/").unwrap_or(rec.id().len())];
+        
         let sequ_fwd = rec.seq();
         let sequ_rev = dna::revcomp(sequ_fwd);
 
@@ -55,14 +57,15 @@ fn main() {
         }).collect();
                                                            
         if good_matches.len() == 0 {
-            write!(all_match_out, "{}\tNone\n", rec.id()).unwrap();
+            write!(all_match_out, "{}\tNone\n", read_id).unwrap();
         } else if good_matches.len() == 1 {
             let (ref name, ref strand, ref lib_match) = good_matches[0];
-            write!(all_match_out, "{}\t{}\t{}\n", rec.id(), name, strand).unwrap();
-            frag_out.write(rec.id(), None, lib_match.frag_match().insert_seq()).unwrap();
-            write!(good_match_out, "{}\t{}\t{}\t{}\n", rec.id(), name, strand, format_match(&lib_match)).unwrap();
+            write!(all_match_out, "{}\t{}\t{}\n", read_id, name, strand).unwrap();
+            let frag_seq = lib_match.frag_match().insert_seq();
+            frag_out.write(&format!("{}/0_{}", read_id, frag_seq.len()), None, frag_seq).unwrap();
+            write!(good_match_out, "{}\t{}\t{}\t{}\n", read_id, name, strand, format_match(&lib_match)).unwrap();
         } else {
-            write!(all_match_out, "{}\tMulti\n", rec.id()).unwrap();
+            write!(all_match_out, "{}\tMulti\n", read_id).unwrap();
         }
     }
 }
