@@ -5,6 +5,7 @@ use bio::pattern_matching::myers::Myers;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LibSpec {
+    name: String,
     frag_matcher: FlankMatchSpec,
     barcode_matcher: FlankMatchSpec,
     barcode_rev: bool,
@@ -12,17 +13,21 @@ pub struct LibSpec {
 
 impl LibSpec {
     pub fn new(
+        name: &str,
         frag_matcher: FlankMatchSpec,
         barcode_matcher: FlankMatchSpec,
         barcode_rev: bool,
     ) -> Self {
         LibSpec {
+            name: name.to_string(),
             frag_matcher: frag_matcher,
             barcode_matcher: barcode_matcher,
             barcode_rev: barcode_rev,
         }
     }
 
+    pub fn name(&self) -> &str { &self.name }
+    
     pub fn best_match<'a>(&self, query: &'a [u8]) -> LibMatchOut<'a> {
         LibMatchOut {
             frag: self.frag_matcher.best_match(query),
@@ -30,6 +35,8 @@ impl LibSpec {
             barcode_rev: self.barcode_rev,
         }
     }
+
+    
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
