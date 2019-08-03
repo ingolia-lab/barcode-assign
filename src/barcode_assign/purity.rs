@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use rust_htslib::bam;
 
-use assign::{AssignMatch, AssignPos, ReadAssign};
+use assign::ReadAssign;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct GrnaPurity {

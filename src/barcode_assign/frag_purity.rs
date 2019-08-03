@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use rust_htslib::bam;
 
-use assign::{AssignMatch, AssignPos, ReadAssign};
+use assign::AssignPos;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FragPurity {
@@ -119,6 +119,7 @@ impl FragPurity {
     }
 }
 
+#[allow(dead_code)]
 fn align_pos_counts<'a, I>(r_iter: I) -> Vec<(Option<AssignPos>, usize)>
 where
     I: Iterator<Item = &'a bam::Record>,

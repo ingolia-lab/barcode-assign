@@ -33,7 +33,9 @@ pub struct Config {
     min_reads: usize,
     min_qual: u8,
     min_purity: f64,
+    #[allow(dead_code)]
     fwd_strand: Option<bool>,
+    #[allow(dead_code)]
     position: Option<i32>,
 }
 
@@ -197,7 +199,9 @@ pub fn bc_frag(config: Config) -> Result<(), failure::Error> {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum Fate {
     Good,
+    #[allow(dead_code)]
     NoAlignFidelity,
+    #[allow(dead_code)]
     NoPosFidelity,
     NoMatch,
     NoPurity,
