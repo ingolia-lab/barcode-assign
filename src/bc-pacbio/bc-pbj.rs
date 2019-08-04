@@ -4,12 +4,13 @@ extern crate rust_htslib;
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Path,PathBuf};
 
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
 fn main() {
-    pacbio_join().unwrap_or_else(|err| {
+    pacbio_join("./pacbio-190731").unwrap_or_else(|err| {
         std::io::stderr()
             .write(format!("{}\n", err).as_bytes())
             .unwrap();
@@ -17,12 +18,12 @@ fn main() {
     });
 }
 
-fn pacbio_join() -> Result<(), failure::Error> {
+fn pacbio_join<P: AsRef<Path>>(out_base: P) -> Result<(), failure::Error> {
     let mut read_to_barcode = HashMap::new();
     let mut read_to_aligns = HashMap::new();
     let mut barcode_to_reads = HashMap::new();
 
-    let barcodes_in = BufReader::new(std::fs::File::open("read-inserts-good.txt")?);
+    let barcodes_in = BufReader::new(std::fs::File::open("pacbio-190731-read-inserts-good.txt")?);
     for line_res in barcodes_in.lines() {
         let line = line_res?;
         let fields: Vec<&str> = line.split("\t").collect();
@@ -43,7 +44,7 @@ fn pacbio_join() -> Result<(), failure::Error> {
         }
     }
 
-    let mut aligns_in = bam::Reader::from_path(&"frags_aligned.bam")?;
+    let mut aligns_in = bam::Reader::from_path(&"pacbio-190731-frags_aligned.bam")?;
     let target_names_res: Result<Vec<_>, _> = aligns_in
         .header()
         .target_names()
@@ -64,8 +65,8 @@ fn pacbio_join() -> Result<(), failure::Error> {
         aligns.sort_by_key(&align_sort_key);
     }
     
-    let mut align_all_out = std::fs::File::create("read-aligns-all.txt")?;
-    let mut align_unique_out = std::fs::File::create("read-aligns-unique.txt")?;
+    let mut align_all_out = std::fs::File::create(output_filename(&out_base, "-read-aligns-all.txt"))?;
+    let mut align_unique_out = std::fs::File::create(output_filename(&out_base, "-read-aligns-unique.txt"))?;
     
     for (&ref read, &(ref barcode, ref library)) in read_to_barcode.iter() {
         write!(align_all_out, "{}\t{}\t", barcode, library)?;
@@ -85,9 +86,10 @@ fn pacbio_join() -> Result<(), failure::Error> {
         }
     }
 
-    let mut barcode_all_out = std::fs::File::create("barcode-assign-all.txt")?;
-    let mut barcode_unambig_out = std::fs::File::create("barcode-assign-unambig.txt")?;
-    let mut barcode_unique_out = std::fs::File::create("barcode-assign-unique.txt")?;
+    let mut barcode_all_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign-all.txt"))?;
+    let mut barcode_unambig_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign-unambig.txt"))?;
+    let mut barcode_unique_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign-unique.txt"))?;
+    let mut barcode_bed_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign.bed"))?;
 
     let empty = Vec::new();
     
@@ -129,12 +131,24 @@ fn pacbio_join() -> Result<(), failure::Error> {
             terse_res?.join("\t"))?;
 
         if unambig.len() == 1 {
+            let frag = &unambig[0];
+            
             write!(
                 barcode_unique_out,
                 "{}\t{}\t{}\t{}\n",
                 barcode, library,
                 reads.len(),
-                format_align(&target_names, &unambig[0])?)?;
+                format_align(&target_names, frag)?)?;
+
+            write!(
+                barcode_bed_out,
+                "{}\t{}\t{}\t{}_{}\t{}\t{}\n",
+                target_names[frag.tid() as usize],
+                frag.pos(),
+                frag.cigar().end_pos()?,
+                barcode, library,
+                reads.len(),
+                if frag.is_reverse() { "-" } else { "+" })?;
         }
     }
 
@@ -195,4 +209,10 @@ fn format_ambiguous(names: &Vec<String>, aligns: &Vec<&Vec<bam::Record>>) -> Res
 
     let read_res: Result<Vec<_>,_> = aligns.iter().map(|alns| format_read(names, alns)).collect();
     Ok(read_res?.join("\t"))
+}
+
+pub fn output_filename<Q: AsRef<Path>>(out_base: Q, name: &str) -> PathBuf {
+    let mut namebase = out_base.as_ref().file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+    namebase.push(name);
+    out_base.as_ref().with_file_name(namebase)
 }
