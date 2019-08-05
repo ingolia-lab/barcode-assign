@@ -1,7 +1,3 @@
-extern crate barcode_assign;
-extern crate failure;
-extern crate rust_htslib;
-
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path,PathBuf};
@@ -9,21 +5,12 @@ use std::path::{Path,PathBuf};
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
-fn main() {
-    pacbio_join("./pacbio-190731").unwrap_or_else(|err| {
-        std::io::stderr()
-            .write(format!("{}\n", err).as_bytes())
-            .unwrap();
-        std::process::exit(1);
-    });
-}
-
-fn pacbio_join<P: AsRef<Path>>(out_base: P) -> Result<(), failure::Error> {
+pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> Result<(), failure::Error> {
     let mut read_to_barcode = HashMap::new();
     let mut read_to_aligns = HashMap::new();
     let mut barcode_to_reads = HashMap::new();
 
-    let barcodes_in = BufReader::new(std::fs::File::open("pacbio-190731-read-inserts-good.txt")?);
+    let barcodes_in = BufReader::new(std::fs::File::open(input_filename(&in_base, "-read-inserts-good.txt"))?);
     for line_res in barcodes_in.lines() {
         let line = line_res?;
         let fields: Vec<&str> = line.split("\t").collect();
@@ -44,7 +31,7 @@ fn pacbio_join<P: AsRef<Path>>(out_base: P) -> Result<(), failure::Error> {
         }
     }
 
-    let mut aligns_in = bam::Reader::from_path(&"pacbio-190731-frags_aligned.bam")?;
+    let mut aligns_in = bam::Reader::from_path(input_filename(&in_base, "-frags_aligned.bam"))?;
     let target_names_res: Result<Vec<_>, _> = aligns_in
         .header()
         .target_names()
@@ -209,6 +196,12 @@ fn format_ambiguous(names: &Vec<String>, aligns: &Vec<&Vec<bam::Record>>) -> Res
 
     let read_res: Result<Vec<_>,_> = aligns.iter().map(|alns| format_read(names, alns)).collect();
     Ok(read_res?.join("\t"))
+}
+
+pub fn input_filename<P: AsRef<Path>>(in_base: P, name: &str) -> PathBuf {
+    let mut namebase = in_base.as_ref().file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+    namebase.push(name);
+    in_base.as_ref().with_file_name(namebase)
 }
 
 pub fn output_filename<Q: AsRef<Path>>(out_base: Q, name: &str) -> PathBuf {

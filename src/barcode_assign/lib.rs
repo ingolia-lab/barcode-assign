@@ -13,5 +13,6 @@ pub mod depth;
 pub mod fastq_pair;
 pub mod flank_match;
 pub mod frag_purity;
+pub mod pacbio_join;
 pub mod pacbio_reads;
 pub mod purity;

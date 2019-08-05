@@ -48,4 +48,4 @@ path = "src/bc-pacbio/bc_pbr.rs"
 
 [[bin]]
 name = "bc-pbj"
-path = "src/bc-pacbio/bc-pbj.rs"
+path = "src/bc-pacbio/bc_pbj.rs"
