@@ -49,3 +49,8 @@ path = "src/bc-pacbio/bc_pbr.rs"
 [[bin]]
 name = "bc-pbj"
 path = "src/bc-pacbio/bc_pbj.rs"
+
+[[bin]]
+name = "bc-bam-chunk"
+path = "src/bc-pacbio/bc_bam_chunk.rs"
+
