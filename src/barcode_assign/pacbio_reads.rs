@@ -1,25 +1,127 @@
+use std::boxed::Box;
 use std::cmp::*;
-use std::io::Write;
+use std::fs;
+use std::io::{BufRead,BufReader,Read,Write};
 use std::path::{Path,PathBuf};
+use std::str::FromStr;
 
 use bio::alphabets::dna;
 use bio::io::fasta;
 use bio::io::fastq;
+use bio::io::fastq::FastqRead;
 use failure;
 
 use flank_match::*;
 
-pub fn pacbio_reads<P: AsRef<Path>, Q: AsRef<Path>>(specs: &[&LibSpec], fastq_filename: P, out_base: Q) -> Result<(), failure::Error>
+#[derive(Debug)]
+pub struct CLI {
+    pub input_fastq: String,
+    pub input_specs_file: String,
+    pub output_base: String,
+    pub output_file_frags: Option<String>,
+    pub output_file_inserts: Option<String>,
+    pub output_file_fates: Option<String>,
+    pub output_file_matching: Option<String>,
+    pub output_matching: bool,
+    pub max_errors_str: String,
+}
+
+impl CLI {
+    pub fn output_filename(&self, name: &str) -> PathBuf {
+        let base_ref: &Path = self.output_base.as_ref();
+        let mut namebase = base_ref.file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        namebase.push(name);
+        base_ref.with_file_name(namebase)
+    }
+
+    pub fn parse_lib_spec(line: &str, max_errors: u8) -> Result<LibSpec, failure::Error> {
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.len() != 6 {
+            bail!("Malformed specification, expecting 6 fields: {:?}");
+        }
+
+        fn make_seq(raw: &str) -> Result<Vec<u8>, failure::Error> {
+            let uc = raw.as_bytes().to_ascii_uppercase();
+            if !uc.iter().all(|ch| b"ACGTN".contains(&ch)) {
+                bail!("Bad sequence string {:?}", raw);
+            }
+            Ok(uc.to_vec())
+        }
+
+        let frag_matcher = FlankMatchSpec::new(&make_seq(fields[1])?, 
+                                               &make_seq(fields[2])?,
+                                               max_errors);
+        let barcode_matcher = FlankMatchSpec::new(&make_seq(fields[3])?, 
+                                                  &make_seq(fields[4])?,
+                                                  max_errors);
+        let barcode_rev = bool::from_str(fields[5])?;
+        Ok(LibSpec::new(fields[0], frag_matcher, barcode_matcher, barcode_rev))
+    }
+
+    pub fn max_errors(&self) -> Result<u8, failure::Error> {
+        Ok(u8::from_str(&self.max_errors_str)?)
+        // ZZZ annotate error
+    }
+    
+    pub fn read_lib_specs(&self) -> Result<Vec<LibSpec>, failure::Error> {
+        let max_errors = self.max_errors()?;
+        let mut specs = Vec::new();
+        for line_res in BufReader::new(fs::File::open(&self.input_specs_file)?).lines() {
+            let line = line_res?;
+            if line.len() > 0 && !line.starts_with("#") {
+                specs.push(Self::parse_lib_spec(&line, max_errors)?);
+            }
+        }
+        Ok(specs)
+    }
+
+    pub fn run(&self) -> Result<(), failure::Error> {
+        // ZZZ handle standard in
+        let mut fastq_reader: Box<dyn Read> = Box::new(std::fs::File::open(&self.input_fastq)?);
+        let mut fastq_in = fastq::Reader::new(Box::leak(fastq_reader));
+
+        let mut fasta_writer: Box<dyn Write> = Box::new(std::fs::File::create(self.output_filename("-frags.fasta"))?);
+      
+        let mut frag_out = fasta::Writer::new(Box::leak(fasta_writer));
+        let mut good_insert_out = std::fs::File::create(self.output_filename("-read-inserts-good.txt"))?;
+        let mut fates_out = std::fs::File::create(self.output_filename("-read-fates.txt"))?;
+        let mut all_match_out = std::fs::File::create(self.output_filename("-read-matching-all.txt"))?;
+
+        let mut outputs = Outputs { frags: &mut frag_out,
+                                    inserts: &mut good_insert_out,
+                                    fates: &mut fates_out,
+                                    matching: &mut all_match_out };
+
+        let specs = self.read_lib_specs()?;
+
+        pacbio_reads(specs.as_slice(), &mut fastq_in, &mut outputs)
+    }
+}
+
+pub struct Outputs<'a> {
+    frags: &'a mut fasta::Writer<&'a mut Write>,
+    inserts: &'a mut Write,
+    fates: &'a mut Write,
+    matching: &'a mut Write
+}
+
+impl <'a> Outputs<'a> {
+    pub fn frags(&mut self) -> &mut fasta::Writer<&'a mut Write> { &mut self.frags }
+    pub fn inserts(&mut self) -> &mut Write { self.inserts }
+    pub fn fates(&mut self) -> &mut Write { self.fates }
+    pub fn matching(&mut self) -> &mut Write { self.matching }
+}
+
+pub fn pacbio_reads(specs: &[LibSpec], fastq_in: &mut fastq::Reader<&mut Read>, outputs: &mut Outputs) -> Result<(), failure::Error>
 {
-    let fastq_in = fastq::Reader::from_file(fastq_filename)?;
+    let mut rec = fastq::Record::new();
+    
+    while true {
+        fastq_in.read(&mut rec);
 
-    let mut frag_out = fasta::Writer::to_file(output_filename(&out_base, "-frags.fasta"))?;
-    let mut good_insert_out = std::fs::File::create(output_filename(&out_base, "-read-inserts-good.txt"))?;
-    let mut all_match_out = std::fs::File::create(output_filename(&out_base, "-read-matching-all.txt"))?;
-    let mut fates_out = std::fs::File::create(output_filename(&out_base, "-read-fates.txt"))?;
-
-    for recres in fastq_in.records() {
-        let rec = recres?;
+        if rec.is_empty() {
+            return Ok(());
+        }
 
         let read_id = &rec.id()[0..rec.id().rfind("/").unwrap_or(rec.id().len())];
 
@@ -44,7 +146,7 @@ pub fn pacbio_reads<P: AsRef<Path>, Q: AsRef<Path>>(specs: &[&LibSpec], fastq_fi
             .collect();
 
         for (ref lib, ref strand, ref match_out) in lib_matches.iter() {
-            write!(all_match_out, "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            write!(outputs.matching(), "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
                    read_id, lib, strand,
                    match_out.barcode_match().before_match_desc(),
                    match_out.barcode_match().after_match_desc(),
@@ -62,16 +164,16 @@ pub fn pacbio_reads<P: AsRef<Path>, Q: AsRef<Path>>(specs: &[&LibSpec], fastq_fi
             .collect();
 
         if good_matches.len() == 0 {
-            write!(fates_out, "{}\tNone\n", read_id)?;
+            write!(outputs.fates(), "{}\tNone\n", read_id)?;
         } else if good_matches.len() == 1 {
             let (ref name, ref strand, ref lib_match) = good_matches[0];
-            write!(fates_out, "{}\t{}\t{}\n", read_id, name, strand)?;
+            write!(outputs.fates(), "{}\t{}\t{}\n", read_id, name, strand)?;
             let frag_seq = lib_match.frag_match().insert_seq();
-            frag_out
+            outputs.frags()
                 .write(&format!("{}/0_{}", read_id, frag_seq.len()), None, frag_seq)
                 ?;
             write!(
-                good_insert_out,
+                outputs.inserts(),
                 "{}\t{}\t{}\t{}\n",
                 read_id,
                 name,
@@ -80,7 +182,7 @@ pub fn pacbio_reads<P: AsRef<Path>, Q: AsRef<Path>>(specs: &[&LibSpec], fastq_fi
             )
                 ?;
         } else {
-            write!(fates_out, "{}\tMulti\n", read_id)?;
+            write!(outputs.fates(), "{}\tMulti\n", read_id)?;
         }
     }
 
@@ -101,10 +203,4 @@ fn format_match<'a>(res: &'a LibMatch<'a>) -> String {
         String::from_utf8_lossy(frag_start),
         String::from_utf8_lossy(frag_end),
     )
-}
-
-pub fn output_filename<Q: AsRef<Path>>(out_base: Q, name: &str) -> PathBuf {
-    let mut namebase = out_base.as_ref().file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
-    namebase.push(name);
-    out_base.as_ref().with_file_name(namebase)
 }
