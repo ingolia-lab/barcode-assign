@@ -75,46 +75,54 @@ impl CLI {
         Ok(specs)
     }
 
+    pub fn outputs(&self) -> Result<Outputs, failure::Error> {
+        let fasta_writer: Box<dyn Write> = Box::new(std::fs::File::create(self.output_filename("-frags.fasta"))?);
+        
+        let frag_out = fasta::Writer::new(fasta_writer);
+        let good_insert_out = std::fs::File::create(self.output_filename("-read-inserts-good.txt"))?;
+        let fates_out = std::fs::File::create(self.output_filename("-read-fates.txt"))?;
+
+        let all_match_out: Box<dyn Write> = if self.output_matching {
+            Box::new(std::fs::File::create(self.output_filename("-read-matching-all.txt"))?)
+        } else {
+            Box::new(std::io::sink())
+        };
+        
+        Ok(Outputs { frags: frag_out,
+                     inserts: Box::new(good_insert_out),
+                     fates: Box::new(fates_out),
+                     matching: all_match_out })
+    }
+    
     pub fn run(&self) -> Result<(), failure::Error> {
-        // ZZZ handle standard in
         let fastq_reader: Box<dyn Read> = if self.input_fastq == "-" {
             Box::new(std::io::stdin())
         } else {
             Box::new(std::fs::File::open(&self.input_fastq)?)
         };
-        let fasta_writer: Box<dyn Write> = Box::new(std::fs::File::create(self.output_filename("-frags.fasta"))?);
       
         {
             let mut fastq_in = fastq::Reader::new(fastq_reader);
-            let mut frag_out = fasta::Writer::new(fasta_writer);
-            let mut good_insert_out = std::fs::File::create(self.output_filename("-read-inserts-good.txt"))?;
-            let mut fates_out = std::fs::File::create(self.output_filename("-read-fates.txt"))?;
-            let mut all_match_out = std::fs::File::create(self.output_filename("-read-matching-all.txt"))?;
-            
-            let mut outputs = Outputs { frags: &mut frag_out,
-                                        inserts: &mut good_insert_out,
-                                        fates: &mut fates_out,
-                                        matching: &mut all_match_out };
-            
             let specs = self.read_lib_specs()?;
+            let mut outputs = self.outputs()?;
             
             pacbio_reads(specs.as_slice(), &mut fastq_in, &mut outputs)
         }
     }
 }
 
-pub struct Outputs<'a> {
-    frags: &'a mut fasta::Writer<Box<dyn Write>>,
-    inserts: &'a mut Write,
-    fates: &'a mut Write,
-    matching: &'a mut Write
+pub struct Outputs {
+    frags: fasta::Writer<Box<dyn Write>>,
+    inserts: Box<dyn Write>,
+    fates: Box<dyn Write>,
+    matching: Box<dyn Write>
 }
 
-impl <'a> Outputs<'a> {
+impl Outputs {
     pub fn frags(&mut self) -> &mut fasta::Writer<Box<dyn Write>> { &mut self.frags }
-    pub fn inserts(&mut self) -> &mut Write { self.inserts }
-    pub fn fates(&mut self) -> &mut Write { self.fates }
-    pub fn matching(&mut self) -> &mut Write { self.matching }
+    pub fn inserts(&mut self) -> &mut Write { self.inserts.as_mut() }
+    pub fn fates(&mut self) -> &mut Write { self.fates.as_mut() }
+    pub fn matching(&mut self) -> &mut Write { self.matching.as_mut() }
 }
 
 pub fn pacbio_reads<R: Read>(specs: &[LibSpec], fastq_in: &mut fastq::Reader<R>, outputs: &mut Outputs) -> Result<(), failure::Error>
