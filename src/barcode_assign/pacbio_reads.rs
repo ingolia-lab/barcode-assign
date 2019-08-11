@@ -27,6 +27,26 @@ pub struct CLI {
 }
 
 impl CLI {
+    pub fn output_file_frags(&self) -> PathBuf {
+        self.output_file_frags.as_ref().map_or_else(|| self.output_filename("-frags.fasta"),
+                                                    |f| PathBuf::from(f))
+    }
+
+    pub fn output_file_inserts(&self) -> PathBuf {
+        self.output_file_inserts.as_ref().map_or_else(|| self.output_filename("-read-inserts-good.txt"),
+                                                      |f| PathBuf::from(f))
+    }
+
+    pub fn output_file_fates(&self) -> PathBuf {
+        self.output_file_fates.as_ref().map_or_else(|| self.output_filename("-read-fates.txt"),
+                                                      |f| PathBuf::from(f))
+    }
+
+    pub fn output_file_matching(&self) -> PathBuf {
+        self.output_file_matching.as_ref().map_or_else(|| self.output_filename("-read-matching-all.txt"),
+                                                      |f| PathBuf::from(f))
+    }
+
     pub fn output_filename(&self, name: &str) -> PathBuf {
         let base_ref: &Path = self.output_base.as_ref();
         let mut namebase = base_ref.file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
@@ -76,14 +96,14 @@ impl CLI {
     }
 
     pub fn outputs(&self) -> Result<Outputs, failure::Error> {
-        let fasta_writer: Box<dyn Write> = Box::new(std::fs::File::create(self.output_filename("-frags.fasta"))?);
+        let fasta_writer: Box<dyn Write> = Box::new(std::fs::File::create(self.output_file_frags())?);
         
         let frag_out = fasta::Writer::new(fasta_writer);
-        let good_insert_out = std::fs::File::create(self.output_filename("-read-inserts-good.txt"))?;
-        let fates_out = std::fs::File::create(self.output_filename("-read-fates.txt"))?;
+        let good_insert_out = std::fs::File::create(self.output_file_inserts())?;
+        let fates_out = std::fs::File::create(self.output_file_fates())?;
 
         let all_match_out: Box<dyn Write> = if self.output_matching {
-            Box::new(std::fs::File::create(self.output_filename("-read-matching-all.txt"))?)
+            Box::new(std::fs::File::create(self.output_file_matching())?)
         } else {
             Box::new(std::io::sink())
         };
@@ -103,10 +123,10 @@ impl CLI {
       
         {
             let mut fastq_in = fastq::Reader::new(fastq_reader);
-            let specs = self.read_lib_specs()?;
+            let mut specs = self.read_lib_specs()?;
             let mut outputs = self.outputs()?;
             
-            pacbio_reads(specs.as_slice(), &mut fastq_in, &mut outputs)
+            pacbio_reads(specs.as_mut(), &mut fastq_in, &mut outputs)
         }
     }
 }
@@ -125,7 +145,7 @@ impl Outputs {
     pub fn matching(&mut self) -> &mut Write { self.matching.as_mut() }
 }
 
-pub fn pacbio_reads<R: Read>(specs: &[LibSpec], fastq_in: &mut fastq::Reader<R>, outputs: &mut Outputs) -> Result<(), failure::Error>
+pub fn pacbio_reads<R: Read>(specs: &mut [LibSpec], fastq_in: &mut fastq::Reader<R>, outputs: &mut Outputs) -> Result<(), failure::Error>
 {
     let mut rec = fastq::Record::new();
     
@@ -141,8 +161,8 @@ pub fn pacbio_reads<R: Read>(specs: &[LibSpec], fastq_in: &mut fastq::Reader<R>,
         let sequ_fwd = rec.seq();
         let sequ_rev = dna::revcomp(sequ_fwd);
         let lib_matches: Vec<(String, String, LibMatchOut)> = specs
-            .iter()
-            .flat_map(|ref spec| {
+            .iter_mut()
+            .flat_map(|ref mut spec| {
                 vec![
                     (
                         spec.name().to_string(),

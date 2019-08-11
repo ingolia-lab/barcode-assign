@@ -3,7 +3,6 @@ use std::cmp::*;
 use bio::alphabets::dna;
 use bio::pattern_matching::myers::Myers;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LibSpec {
     name: String,
     frag_matcher: FlankMatchSpec,
@@ -28,7 +27,7 @@ impl LibSpec {
 
     pub fn name(&self) -> &str { &self.name }
     
-    pub fn best_match<'a>(&self, query: &'a [u8]) -> LibMatchOut<'a> {
+    pub fn best_match<'a>(&mut self, query: &'a [u8]) -> LibMatchOut<'a> {
         LibMatchOut {
             frag: self.frag_matcher.best_match(query),
             barcode: self.barcode_matcher.best_match(query),
@@ -103,8 +102,9 @@ impl<'a> LibMatch<'a> {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FlankMatchSpec {
+    before_myers: Myers<u64>,
+    after_myers: Myers<u64>,
     before: Vec<u8>,
     after: Vec<u8>,
     max_errors: u8,
@@ -113,22 +113,21 @@ pub struct FlankMatchSpec {
 impl FlankMatchSpec {
     pub fn new(before: &[u8], after: &[u8], max_errors: u8) -> Self {
         FlankMatchSpec {
+            before_myers: Myers::<u64>::new(before),
+            after_myers: Myers::<u64>::new(after),
             before: before.to_vec(),
             after: after.to_vec(),
             max_errors: max_errors,
         }
     }
 
-    pub fn best_match<'a>(&self, query: &'a [u8]) -> FlankMatchOut<'a> {
-        let mut myers_before = Myers::<u64>::new(&self.before);
-        let mut myers_after = Myers::<u64>::new(&self.after);
-
+    pub fn best_match<'a>(&mut self, query: &'a [u8]) -> FlankMatchOut<'a> {
         // N.B. end coordinate is not included in match
-        let best_before = myers_before
+        let best_before = self.before_myers
             .find_all(query, self.max_errors)
             .by_ref()
             .min_by_key(|&(_, _, dist)| dist);
-        let best_after = myers_after
+        let best_after = self.after_myers
             .find_all(query, self.max_errors)
             .by_ref()
             .min_by_key(|&(_, _, dist)| dist);
