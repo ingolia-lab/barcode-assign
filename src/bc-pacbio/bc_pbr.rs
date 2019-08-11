@@ -45,15 +45,30 @@ fn main() {
              .short("m")
              .long("matches")
              .help("Write verbose linker matching information"))
+        .arg(Arg::with_name("frags")
+             .long("frags")
+             .value_name("FRAGS.FA")
+             .help("Filename of fragment sequence output file")
+             .takes_value(true))
+        .arg(Arg::with_name("inserts")
+             .long("inserts")
+             .value_name("INSERTS.TXT")
+             .help("Filename of insert sequence output file")
+             .takes_value(true))
+        .arg(Arg::with_name("fates")
+             .long("fates")
+             .value_name("FATES.TXT")
+             .help("Filename of read fate output file")
+             .takes_value(true))
         .get_matches();
 
     let cli = CLI {
         input_fastq: matches.value_of("input").unwrap().to_string(),
         input_specs_file: matches.value_of("libspecs").unwrap().to_string(),
         output_base: matches.value_of("outbase").unwrap().to_string(),
-        output_file_frags:None,
-        output_file_inserts:None,
-        output_file_fates:None,
+        output_file_frags: matches.value_of("frags").map(String::from),
+        output_file_inserts: matches.value_of("inserts").map(String::from),
+        output_file_fates: matches.value_of("fates").map(String::from),
         output_file_matching:None,
         output_matching: matches.occurrences_of("matches") > 0,
         max_errors_str: matches.value_of("max_errors").unwrap().to_string(),
