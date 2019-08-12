@@ -23,17 +23,41 @@ use bio::pattern_matching::myers::Myers;
 //       ii. push near-neighbor onto work stack
 //    b. add node to neighborhood
 
-pub fn gather_neighborhoods(mut bc_set: HashSet<Vec<u8>>) -> Vec<Vec<Vec<u8>>> {
+pub fn gather_neighborhoods(mut bc_set: HashSet<Vec<u8>>) -> Vec<Vec<Vec<u8>>>
+{
+    let mut neighborhoods = Vec::new();
+    
     loop {
-        let work_stack = Vec::new();
+        let mut work_stack = Vec::new();
+        let mut neighborhood = Vec::new();
         
-        if let Some(start_ref) = bc_set.iter().next() {
-            let start = bc_set.take(start_ref).unwrap();
-            work_stack.push(start);
-        } else {
-            return Vec::new();
+        let start_ref = match bc_set.iter().next() {
+            Some(start_ref) => start_ref,
+            None => { break; }
+        };
+        
+        // work_stack.push(bc_set.take(start_ref).unwrap());
+        let start = start_ref.to_vec();
+        bc_set.take(&start);
+        work_stack.push(start);
+
+        while work_stack.len() > 0 {
+            let curr = work_stack.pop().unwrap();
+
+            let neighbors = Substitutions::new(&curr).chain(Deletions::new(&curr));
+            for neighbor in neighbors {
+                if bc_set.remove(&neighbor) {
+                    work_stack.push(neighbor);
+                }
+            }
+
+            neighborhood.push(curr);
         }
+
+        neighborhoods.push(neighborhood);
     }
+
+    neighborhoods
 }
 
 pub struct BarcodeNbhdMap {
@@ -55,7 +79,7 @@ impl BarcodeNbhdMap {
         if self.barcode_nbhds.contains_key(bc) {
             self.barcode_nbhds.get(bc).unwrap().borrow_mut().insert(bc);
         } else {
-            let mut subst_iter = Substitutions::new(bc).chain(Deletions::new(bc));
+            let mut subst_iter = Substitutions::new(bc).chain(Deletions::new(bc)).chain(Insertions::new(bc));
             let mut nbhd_found = false;
             
             for subst in subst_iter {
@@ -176,6 +200,41 @@ impl <'a> Iterator for Substitutions<'a> {
     }
 }
 
+struct Insertions<'a> {
+    original: &'a [u8],
+    position: usize,
+    nt: usize,
+}
+
+impl <'a> Insertions<'a> {
+    pub fn new(original: &'a [u8]) -> Self {
+        Insertions { original: original, position: 0, nt: 0 }
+    }
+}
+
+impl <'a> Iterator for Insertions<'a> {
+    type Item = Vec<u8>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.position > self.original.len() {
+            return None;
+        }
+
+        if self.nt >= NTS_LEN {
+            self.position += 1;
+            self.nt = 0;
+            return self.next();
+        }
+
+        let mut variant = Vec::with_capacity(self.original.len() + 1);
+        variant.extend_from_slice(&self.original[..self.position]);
+        variant.push(NTS[self.nt]);
+        variant.extend_from_slice(&self.original[self.position..]);
+        self.nt += 1;
+        return Some(variant);
+    }
+}
+
 struct Deletions<'a> {
     original: &'a [u8],
     position: usize,
@@ -195,8 +254,9 @@ impl <'a> Iterator for Deletions<'a> {
             return None;
         }
 
-        let mut variant = self.original.to_vec();
-        variant.remove(self.position);
+        let mut variant = Vec::with_capacity(self.original.len() - 1);
+        variant.extend_from_slice(&self.original[..self.position]);
+        variant.extend_from_slice(&self.original[(self.position+1)..]);
         self.position += 1;
         return Some(variant);
     }
