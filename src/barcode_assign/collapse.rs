@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use std::io::Write;
 use std::rc::Rc;
 
@@ -22,6 +22,19 @@ use bio::pattern_matching::myers::Myers;
 //       i. remove near-neighbor from key set
 //       ii. push near-neighbor onto work stack
 //    b. add node to neighborhood
+
+pub fn gather_neighborhoods(mut bc_set: HashSet<Vec<u8>>) -> Vec<Vec<Vec<u8>>> {
+    loop {
+        let work_stack = Vec::new();
+        
+        if let Some(start_ref) = bc_set.iter().next() {
+            let start = bc_set.take(start_ref).unwrap();
+            work_stack.push(start);
+        } else {
+            return Vec::new();
+        }
+    }
+}
 
 pub struct BarcodeNbhdMap {
     nbhds: Vec<Rc<RefCell<BarcodeNbhd>>>,
