@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
@@ -15,25 +15,33 @@ pub struct CLI {
 
 impl CLI {
     pub fn inserts_good_file(&self) -> PathBuf {
-        self.inserts_good_file.as_ref().map_or_else(|| self.input_filename("-read-inserts-good.txt"),
-                                                    |f| PathBuf::from(f))
+        self.inserts_good_file.as_ref().map_or_else(
+            || self.input_filename("-read-inserts-good.txt"),
+            |f| PathBuf::from(f),
+        )
     }
 
     pub fn frags_aligned_file(&self) -> PathBuf {
-        self.inserts_good_file.as_ref().map_or_else(|| self.input_filename("-frags-aligned.bam"),
-                                                    |f| PathBuf::from(f))
+        self.inserts_good_file.as_ref().map_or_else(
+            || self.input_filename("-frags-aligned.bam"),
+            |f| PathBuf::from(f),
+        )
     }
 
     pub fn input_filename(&self, name: &str) -> PathBuf {
         let base_ref: &Path = self.input_base.as_ref();
-        let mut namebase = base_ref.file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        let mut namebase = base_ref
+            .file_name()
+            .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
         namebase.push(name);
         base_ref.with_file_name(namebase)
     }
 
     pub fn output_filename(&self, name: &str) -> PathBuf {
         let base_ref: &Path = self.output_base.as_ref();
-        let mut namebase = base_ref.file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        let mut namebase = base_ref
+            .file_name()
+            .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
         namebase.push(name);
         base_ref.with_file_name(namebase)
     }
@@ -43,15 +51,19 @@ impl CLI {
             read_aligns_all: Outputs::output(self.output_filename("-read-aligns-all.txt"))?,
             read_aligns_unique: Outputs::output(self.output_filename("-read-aligns-unique.txt"))?,
             barcode_assign_all: Outputs::output(self.output_filename("-barcode-assign-all.txt"))?,
-            barcode_assign_unambig: Outputs::output(self.output_filename("-barcode-assign-umabig.txt"))?,
-            barcode_assign_unique: Outputs::output(self.output_filename("-barcode-assign-unique.txt"))?,
+            barcode_assign_unambig: Outputs::output(
+                self.output_filename("-barcode-assign-umabig.txt"),
+            )?,
+            barcode_assign_unique: Outputs::output(
+                self.output_filename("-barcode-assign-unique.txt"),
+            )?,
             barcode_assign_bed: Outputs::output(self.output_filename("-barcode-assign.bed"))?,
         })
     }
-    
+
     pub fn run(&self) -> Result<(), failure::Error> {
         let mut read_inserts_good = std::fs::File::open(self.inserts_good_file())?;
-        let mut frags_aligned = bam::Reader::from_path(self.frags_aligned_file())?;
+        let frags_aligned = bam::Reader::from_path(self.frags_aligned_file())?;
 
         let mut outputs = self.outputs()?;
 
@@ -70,21 +82,36 @@ pub struct Outputs {
 }
 
 impl Outputs {
-    pub fn read_aligns_all(&mut self) -> &mut Write { &mut self.read_aligns_all }
-    pub fn read_aligns_unique(&mut self) -> &mut Write { &mut self.read_aligns_unique }
+    pub fn read_aligns_all(&mut self) -> &mut Write {
+        &mut self.read_aligns_all
+    }
+    pub fn read_aligns_unique(&mut self) -> &mut Write {
+        &mut self.read_aligns_unique
+    }
 
-    pub fn barcode_assign_all(&mut self) -> &mut Write { &mut self.barcode_assign_all }
-    pub fn barcode_assign_unambig(&mut self) -> &mut Write { &mut self.barcode_assign_unambig }
-    pub fn barcode_assign_unique(&mut self) -> &mut Write { &mut self.barcode_assign_unique }
-    pub fn barcode_assign_bed(&mut self) -> &mut Write { &mut self.barcode_assign_bed }
+    pub fn barcode_assign_all(&mut self) -> &mut Write {
+        &mut self.barcode_assign_all
+    }
+    pub fn barcode_assign_unambig(&mut self) -> &mut Write {
+        &mut self.barcode_assign_unambig
+    }
+    pub fn barcode_assign_unique(&mut self) -> &mut Write {
+        &mut self.barcode_assign_unique
+    }
+    pub fn barcode_assign_bed(&mut self) -> &mut Write {
+        &mut self.barcode_assign_bed
+    }
 
     pub fn output<P: AsRef<Path>>(filename: P) -> Result<Box<dyn Write>, failure::Error> {
         Ok(Box::new(std::fs::File::create(filename)?))
     }
 }
 
-pub fn pacbio_join<R: std::io::Read>(read_inserts_good: R, mut frags_aligned: bam::Reader, outputs: &mut Outputs) -> Result<(), failure::Error>
-{
+pub fn pacbio_join<R: std::io::Read>(
+    read_inserts_good: R,
+    mut frags_aligned: bam::Reader,
+    outputs: &mut Outputs,
+) -> Result<(), failure::Error> {
     let mut read_to_barcode = HashMap::new();
     let mut read_to_aligns = HashMap::new();
     let mut barcode_to_reads = HashMap::new();
@@ -129,19 +156,30 @@ pub fn pacbio_join<R: std::io::Read>(read_inserts_good: R, mut frags_aligned: ba
     for ref mut aligns in read_to_aligns.values_mut() {
         aligns.sort_by_key(&align_sort_key);
     }
-    
+
     for (&ref read, &(ref barcode, ref library)) in read_to_barcode.iter() {
         write!(outputs.read_aligns_all(), "{}\t{}\t", barcode, library)?;
         if let Some(aligns) = read_to_aligns.get(read) {
             let status = if aligns.len() == 1 { "Unique" } else { "Multi" };
-            let terse: Result<Vec<_>,_> = aligns.iter().map(|a| terse_align(&target_names, a)).collect();
-            write!(outputs.read_aligns_all(), "{}\t{}\n", status, terse?.join("\t"))?;
+            let terse: Result<Vec<_>, _> = aligns
+                .iter()
+                .map(|a| terse_align(&target_names, a))
+                .collect();
+            write!(
+                outputs.read_aligns_all(),
+                "{}\t{}\n",
+                status,
+                terse?.join("\t")
+            )?;
 
             if aligns.len() == 1 {
-                write!(outputs.read_aligns_unique(),
-                       "{}\t{}\t{}\n",
-                       barcode, library,
-                       format_align(&target_names, &aligns[0])?)?;
+                write!(
+                    outputs.read_aligns_unique(),
+                    "{}\t{}\t{}\n",
+                    barcode,
+                    library,
+                    format_align(&target_names, &aligns[0])?
+                )?;
             }
         } else {
             write!(outputs.read_aligns_all(), "None\n")?;
@@ -149,53 +187,68 @@ pub fn pacbio_join<R: std::io::Read>(read_inserts_good: R, mut frags_aligned: ba
     }
 
     let empty = Vec::new();
-    
+
     for (&(ref barcode, ref library), &ref reads) in barcode_to_reads.iter() {
         let aligns: Vec<&Vec<bam::Record>> = reads
             .iter()
-            .map(|r| {
-                read_to_aligns
-                    .get(r)
-                    .unwrap_or(&empty)
-            })
+            .map(|r| read_to_aligns.get(r).unwrap_or(&empty))
             .collect();
 
         write!(
             outputs.barcode_assign_all(),
             "{}\t{}\t{}\t",
-            barcode, library, reads.len())?;
-        
+            barcode,
+            library,
+            reads.len()
+        )?;
+
         if is_ambiguous(&aligns) {
-            write!(outputs.barcode_assign_all(),
-                   "Ambig\t{}\n",
-                   format_ambiguous(&target_names, &aligns)?)?;
+            write!(
+                outputs.barcode_assign_all(),
+                "Ambig\t{}\n",
+                format_ambiguous(&target_names, &aligns)?
+            )?;
             continue;
         }
 
         let unambig = aligns.first().ok_or(failure::err_msg("Empty read set"))?;
 
-        let status = if unambig.len() == 0 { "None" } else if unambig.len() > 1 { "Multi" } else { "Unique" };
+        let status = if unambig.len() == 0 {
+            "None"
+        } else if unambig.len() > 1 {
+            "Multi"
+        } else {
+            "Unique"
+        };
 
         write!(outputs.barcode_assign_all(), "{}\n", status)?;
-        
-        let terse_res: Result<Vec<_>,_> = unambig.iter().map(|aln| terse_align(&target_names, aln)).collect();
-        
+
+        let terse_res: Result<Vec<_>, _> = unambig
+            .iter()
+            .map(|aln| terse_align(&target_names, aln))
+            .collect();
+
         write!(
             outputs.barcode_assign_unambig(),
             "{}\t{}\t{}\t{}\t{}\n",
-            barcode, library, 
-            reads.len(), status,
-            terse_res?.join("\t"))?;
+            barcode,
+            library,
+            reads.len(),
+            status,
+            terse_res?.join("\t")
+        )?;
 
         if unambig.len() == 1 {
             let frag = &unambig[0];
-            
+
             write!(
                 outputs.barcode_assign_unique(),
                 "{}\t{}\t{}\t{}\n",
-                barcode, library,
+                barcode,
+                library,
                 reads.len(),
-                format_align(&target_names, frag)?)?;
+                format_align(&target_names, frag)?
+            )?;
 
             write!(
                 outputs.barcode_assign_bed(),
@@ -203,9 +256,11 @@ pub fn pacbio_join<R: std::io::Read>(read_inserts_good: R, mut frags_aligned: ba
                 target_names[frag.tid() as usize],
                 frag.pos(),
                 frag.cigar().end_pos()?,
-                barcode, library,
+                barcode,
+                library,
                 reads.len(),
-                if frag.is_reverse() { "-" } else { "+" })?;
+                if frag.is_reverse() { "-" } else { "+" }
+            )?;
         }
     }
 
@@ -223,12 +278,13 @@ fn format_align(names: &Vec<String>, r: &bam::Record) -> Result<String, failure:
 }
 
 fn terse_align(names: &Vec<String>, r: &bam::Record) -> Result<String, failure::Error> {
-    Ok(format!("{}:{}-{}({})",
-               names[r.tid() as usize],
-               r.pos(),
-               r.cigar().end_pos()?,
-               if r.is_reverse() { "-" } else { "+" }
-    ))               
+    Ok(format!(
+        "{}:{}-{}({})",
+        names[r.tid() as usize],
+        r.pos(),
+        r.cigar().end_pos()?,
+        if r.is_reverse() { "-" } else { "+" }
+    ))
 }
 
 fn align_sort_key(r: &bam::Record) -> (i32, i32) {
@@ -239,13 +295,19 @@ const POS_TOL: i32 = 3;
 
 fn is_ambiguous(aligns: &Vec<&Vec<bam::Record>>) -> bool {
     fn align_equivalent(r0: &bam::Record, r1: &bam::Record) -> bool {
-        r0.tid() == r1.tid() && (r0.pos() - r1.pos()).abs() < POS_TOL && r0.is_reverse() == r1.is_reverse()
+        r0.tid() == r1.tid()
+            && (r0.pos() - r1.pos()).abs() < POS_TOL
+            && r0.is_reverse() == r1.is_reverse()
     }
 
     fn aligns_equivalent(alns0: &Vec<bam::Record>, alns1: &Vec<bam::Record>) -> bool {
-        alns0.len() == alns1.len() && alns0.iter().zip(alns1.iter()).all(|(r0, r1)| align_equivalent(r0, r1))
+        alns0.len() == alns1.len()
+            && alns0
+                .iter()
+                .zip(alns1.iter())
+                .all(|(r0, r1)| align_equivalent(r0, r1))
     }
-    
+
     let mut aligns_iter = aligns.iter();
 
     if let Some(aligns0) = aligns_iter.next() {
@@ -255,27 +317,36 @@ fn is_ambiguous(aligns: &Vec<&Vec<bam::Record>>) -> bool {
     }
 }
 
-fn format_ambiguous(names: &Vec<String>, aligns: &Vec<&Vec<bam::Record>>) -> Result<String, failure::Error> {
+fn format_ambiguous(
+    names: &Vec<String>,
+    aligns: &Vec<&Vec<bam::Record>>,
+) -> Result<String, failure::Error> {
     fn format_read(names: &Vec<String>, alns: &Vec<bam::Record>) -> Result<String, failure::Error> {
         if alns.len() == 0 {
             return Ok("none".to_string());
         }
-        let terse_res: Result<Vec<_>,_> = alns.iter().map(|aln| { terse_align(names, aln) }).collect();
+        let terse_res: Result<Vec<_>, _> = alns.iter().map(|aln| terse_align(names, aln)).collect();
         Ok(terse_res?.join(";"))
     }
 
-    let read_res: Result<Vec<_>,_> = aligns.iter().map(|alns| format_read(names, alns)).collect();
+    let read_res: Result<Vec<_>, _> = aligns.iter().map(|alns| format_read(names, alns)).collect();
     Ok(read_res?.join("\t"))
 }
 
 pub fn input_filename<P: AsRef<Path>>(in_base: P, name: &str) -> PathBuf {
-    let mut namebase = in_base.as_ref().file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+    let mut namebase = in_base
+        .as_ref()
+        .file_name()
+        .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
     namebase.push(name);
     in_base.as_ref().with_file_name(namebase)
 }
 
 pub fn output_filename<Q: AsRef<Path>>(out_base: Q, name: &str) -> PathBuf {
-    let mut namebase = out_base.as_ref().file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+    let mut namebase = out_base
+        .as_ref()
+        .file_name()
+        .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
     namebase.push(name);
     out_base.as_ref().with_file_name(namebase)
 }

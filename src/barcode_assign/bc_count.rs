@@ -39,7 +39,7 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
     write_barcode_table(writer, &barcode_counts)?;
 
     if let Some(freq_filename) = config.freq_filename {
-        let mut freq_writer = File::create(freq_filename)?;
+        let freq_writer = File::create(freq_filename)?;
         write_freq_table(freq_writer, &barcode_counts)?;
     }
 

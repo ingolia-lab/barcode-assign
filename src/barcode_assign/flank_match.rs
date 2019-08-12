@@ -25,8 +25,10 @@ impl LibSpec {
         }
     }
 
-    pub fn name(&self) -> &str { &self.name }
-    
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn best_match<'a>(&mut self, query: &'a [u8]) -> LibMatchOut<'a> {
         LibMatchOut {
             frag: self.frag_matcher.best_match(query),
@@ -34,8 +36,6 @@ impl LibSpec {
             barcode_rev: self.barcode_rev,
         }
     }
-
-    
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -105,7 +105,9 @@ impl<'a> LibMatch<'a> {
 pub struct FlankMatchSpec {
     before_myers: Myers<u64>,
     after_myers: Myers<u64>,
+    #[allow(dead_code)]
     before: Vec<u8>,
+    #[allow(dead_code)]
     after: Vec<u8>,
     max_errors: u8,
 }
@@ -123,11 +125,13 @@ impl FlankMatchSpec {
 
     pub fn best_match<'a>(&mut self, query: &'a [u8]) -> FlankMatchOut<'a> {
         // N.B. end coordinate is not included in match
-        let best_before = self.before_myers
+        let best_before = self
+            .before_myers
             .find_all(query, self.max_errors)
             .by_ref()
             .min_by_key(|&(_, _, dist)| dist);
-        let best_after = self.after_myers
+        let best_after = self
+            .after_myers
             .find_all(query, self.max_errors)
             .by_ref()
             .min_by_key(|&(_, _, dist)| dist);
@@ -176,17 +180,30 @@ impl<'a> FlankMatchOut<'a> {
 
     pub fn before_match_desc(&self) -> String {
         if let Some((_start, end, _score)) = self.before {
-            String::from_utf8_lossy(&self.query[max(DESC_LEN, end)-DESC_LEN..end].to_ascii_uppercase()).to_string() +
-                &String::from_utf8_lossy(&self.query[end..min(end + DESC_LEN, self.query.len())].to_ascii_lowercase()).to_string()
+            String::from_utf8_lossy(
+                &self.query[max(DESC_LEN, end) - DESC_LEN..end].to_ascii_uppercase(),
+            )
+            .to_string()
+                + &String::from_utf8_lossy(
+                    &self.query[end..min(end + DESC_LEN, self.query.len())].to_ascii_lowercase(),
+                )
+                .to_string()
         } else {
             "N/A".to_string()
         }
     }
-    
+
     pub fn after_match_desc(&self) -> String {
         if let Some((start, _end, _score)) = self.after {
-            String::from_utf8_lossy(&self.query[max(DESC_LEN, start)-DESC_LEN..start].to_ascii_lowercase()).to_string() +
-                &String::from_utf8_lossy(&self.query[start..min(start + DESC_LEN, self.query.len())].to_ascii_uppercase()).to_string()
+            String::from_utf8_lossy(
+                &self.query[max(DESC_LEN, start) - DESC_LEN..start].to_ascii_lowercase(),
+            )
+            .to_string()
+                + &String::from_utf8_lossy(
+                    &self.query[start..min(start + DESC_LEN, self.query.len())]
+                        .to_ascii_uppercase(),
+                )
+                .to_string()
         } else {
             "N/A".to_string()
         }
@@ -256,16 +273,22 @@ mod tests {
 
         let query_perfect = build_query(upstream, before, insert, after, downstream);
         assert_eq!(query_perfect, b"CTAACGTACGTTTAATTAACAGTCAGTAAG");
-        
+
         let insert_start = upstream.len() + before.len();
         let insert_end = insert_start + insert.len();
-        
+
         let match_spec_a = FlankMatchSpec::new(before, after, 0);
-        let match_a = match_spec_a.best_match(&query_perfect).flank_match().unwrap();
+        let match_a = match_spec_a
+            .best_match(&query_perfect)
+            .flank_match()
+            .unwrap();
         assert_eq!(match_a.score(), 0);
         assert_eq!(match_a.insert_start(), insert_start);
         assert_eq!(match_a.insert_end(), insert_end);
-        assert_eq!(match_a.insert_seq(), &query_perfect[insert_start..insert_end]);
+        assert_eq!(
+            match_a.insert_seq(),
+            &query_perfect[insert_start..insert_end]
+        );
 
         let before_mut = b"ACGTTCGT";
         let query_before_mut = build_query(upstream, before_mut, insert, after, downstream);
@@ -274,7 +297,7 @@ mod tests {
         let match_spec_b = FlankMatchSpec::new(before_mut, after, 0);
         let match_b = match_spec_b.best_match(&query_perfect).flank_match();
         assert_eq!(match_b, None);
-        
+
         let after_mut = b"CACTCAGT";
         let query_after_mut = build_query(upstream, before, insert, after_mut, downstream);
         let match_after_mut = match_spec_a.best_match(&query_after_mut).flank_match();
@@ -286,35 +309,82 @@ mod tests {
 
     #[test]
     fn imperfect_match() {
-        //             0123456789012345678901234567 
-        assert_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTCGC", b"CGTGA", 0, 9, 18);
-        assert_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTAGC", b"CGTGA", 1, 9, 18);
-        assert_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTCGC", b"CCTGA", 1, 9, 18);
+        //             0123456789012345678901234567
+        assert_match(
+            b"AGATCTCGCGAGAATTAACGTGAGTGCC",
+            b"CTCGC",
+            b"CGTGA",
+            0,
+            9,
+            18,
+        );
+        assert_match(
+            b"AGATCTCGCGAGAATTAACGTGAGTGCC",
+            b"CTAGC",
+            b"CGTGA",
+            1,
+            9,
+            18,
+        );
+        assert_match(
+            b"AGATCTCGCGAGAATTAACGTGAGTGCC",
+            b"CTCGC",
+            b"CCTGA",
+            1,
+            9,
+            18,
+        );
 
-        assert_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTTCGC", b"CGTGA", 1, 9, 18);
-        assert_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTCGC", b"CGTGGA", 1, 9, 18);
+        assert_match(
+            b"AGATCTCGCGAGAATTAACGTGAGTGCC",
+            b"CTTCGC",
+            b"CGTGA",
+            1,
+            9,
+            18,
+        );
+        assert_match(
+            b"AGATCTCGCGAGAATTAACGTGAGTGCC",
+            b"CTCGC",
+            b"CGTGGA",
+            1,
+            9,
+            18,
+        );
 
         assert_no_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTAGC", b"CGTGA", 0);
         assert_no_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTCGC", b"CCTGA", 0);
         assert_no_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTTCGC", b"CGTGA", 0);
-        assert_no_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTCGC", b"CGTGGA", 0);        
+        assert_no_match(b"AGATCTCGCGAGAATTAACGTGAGTGCC", b"CTCGC", b"CGTGGA", 0);
     }
 
-    fn assert_match(query: &[u8], before: &[u8], after: &[u8], max_errors: u8, insert_start: usize, insert_end: usize) {
+    fn assert_match(
+        query: &[u8],
+        before: &[u8],
+        after: &[u8],
+        max_errors: u8,
+        insert_start: usize,
+        insert_end: usize,
+    ) {
         let match_spec = FlankMatchSpec::new(before, after, max_errors);
         let match_out = match_spec.best_match(query).flank_match().unwrap();
         assert_eq!(match_out.insert_start(), insert_start);
         assert_eq!(match_out.insert_end(), insert_end);
     }
-    
+
     fn assert_no_match(query: &[u8], before: &[u8], after: &[u8], max_errors: u8) {
         let match_spec = FlankMatchSpec::new(before, after, max_errors);
         let match_out = match_spec.best_match(query).flank_match();
         assert_eq!(match_out, None);
     }
-    
-    fn build_query(upstream: &[u8], before: &[u8], insert: &[u8], after: &[u8], downstream: &[u8]) -> Vec<u8>
-    {
+
+    fn build_query(
+        upstream: &[u8],
+        before: &[u8],
+        insert: &[u8],
+        after: &[u8],
+        downstream: &[u8],
+    ) -> Vec<u8> {
         let mut query = upstream.to_vec();
         query.extend_from_slice(before);
         query.extend_from_slice(insert);
@@ -322,5 +392,5 @@ mod tests {
         query.extend_from_slice(downstream);
         query
     }
-   
+
 }
