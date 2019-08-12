@@ -10,7 +10,21 @@ use bio::pattern_matching::myers::Myers;
 // Insert later barcodes with links to earlier barcodes?
 //   Or, create barcode equivalency sets?
 
+// No need for complexity during counting -- post-process key set in
+// map to find neighborhoods. No need to handle insertions, can find
+// all edges with substitutions and deletions.
+
+// 1. Pick a node
+//    a. remove from key set
+//    b. initialize work stack with node
+// 2. Handle a node from work stack
+//    a. check key set for all near-neighbors
+//       i. remove near-neighbor from key set
+//       ii. push near-neighbor onto work stack
+//    b. add node to neighborhood
+
 pub struct BarcodeNbhdMap {
+    nbhds: Vec<Rc<RefCell<BarcodeNbhd>>>,
     barcode_nbhds: HashMap<Vec<u8>, Rc<RefCell<BarcodeNbhd>>>,
     max_dist: u8,
 }
@@ -18,6 +32,7 @@ pub struct BarcodeNbhdMap {
 impl BarcodeNbhdMap {
     pub fn new(max_dist: usize) -> Self {
         BarcodeNbhdMap {
+            nbhds: Vec::new(),
             barcode_nbhds: HashMap::new(),
             max_dist: max_dist as u8,
         }
@@ -27,19 +42,9 @@ impl BarcodeNbhdMap {
         if self.barcode_nbhds.contains_key(bc) {
             self.barcode_nbhds.get(bc).unwrap().borrow_mut().insert(bc);
         } else {
-            // let myers = Myers::<u64>::new(bc);
-
-            // for key in self.barcode_nbhds.keys() {
-            //     let (_, dist) = myers.find_best_end(key);
-            //     if dist <= self.max_dist {
-            //         println!("Found {} vs {} at {}",
-            //                  String::from_utf8_lossy(bc),
-            //                  String::from_utf8_lossy(key),
-            //                  dist);
-            //     }
-            // }
-
             let mut subst_iter = Substitutions::new(bc).chain(Deletions::new(bc));
+            let mut nbhd_found = false;
+            
             for subst in subst_iter {
                 if self.barcode_nbhds.contains_key(&subst) {
                     let nbhd = self.barcode_nbhds.get(&subst).unwrap();
@@ -51,11 +56,32 @@ impl BarcodeNbhdMap {
             
             let mut nbhd = BarcodeNbhd::new();
             nbhd.insert(bc);
-            self.barcode_nbhds.insert(bc.to_vec(), Rc::new(RefCell::new(nbhd)));
+            let mut nbhd_rc = Rc::new(RefCell::new(nbhd));
+            self.nbhds.push(Rc::clone(&nbhd_rc));
+            self.barcode_nbhds.insert(bc.to_vec(), nbhd_rc);
         }
     }
 
     pub fn write_nbhds<W: Write>(&self, mut out: W) -> Result<(), failure::Error> {
+        for nbhd in self.nbhds.iter() {
+            let mut barcodes = nbhd.borrow().barcodes.clone();
+            barcodes.sort_by_key(|(_, ct)| -(*ct as isize));
+            let (keybc, keyct) = barcodes.first().unwrap();
+            let total: usize = barcodes.iter().map(|(_, ct)| *ct).sum();
+            write!(out, "{}\t{}\t{}\t{:0.3}",
+                   String::from_utf8_lossy(keybc),
+                   barcodes.len(), total,
+                   (*keyct as f64) / (total as f64))?;
+            for (bc, ct) in barcodes.iter() {
+                write!(out, "\t{}\t{}",
+                       String::from_utf8_lossy(bc), ct)?;
+            }
+            write!(out, "\n")?;
+        }
+        Ok(())
+    }
+    
+    pub fn write_barcode_nbhds<W: Write>(&self, mut out: W) -> Result<(), failure::Error> {
         for (key, val) in self.barcode_nbhds.iter() {
             write!(out, "{}",
                    String::from_utf8_lossy(key))?;
