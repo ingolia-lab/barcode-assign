@@ -5,12 +5,91 @@ use std::path::{Path,PathBuf};
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 
-pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> Result<(), failure::Error> {
+#[derive(Debug)]
+pub struct CLI {
+    pub input_base: String,
+    pub inserts_good_file: Option<String>,
+    pub frags_aligned_file: Option<String>,
+    pub output_base: String,
+}
+
+impl CLI {
+    pub fn inserts_good_file(&self) -> PathBuf {
+        self.inserts_good_file.as_ref().map_or_else(|| self.input_filename("-read-inserts-good.txt"),
+                                                    |f| PathBuf::from(f))
+    }
+
+    pub fn frags_aligned_file(&self) -> PathBuf {
+        self.inserts_good_file.as_ref().map_or_else(|| self.input_filename("-frags-aligned.bam"),
+                                                    |f| PathBuf::from(f))
+    }
+
+    pub fn input_filename(&self, name: &str) -> PathBuf {
+        let base_ref: &Path = self.input_base.as_ref();
+        let mut namebase = base_ref.file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        namebase.push(name);
+        base_ref.with_file_name(namebase)
+    }
+
+    pub fn output_filename(&self, name: &str) -> PathBuf {
+        let base_ref: &Path = self.output_base.as_ref();
+        let mut namebase = base_ref.file_name().map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        namebase.push(name);
+        base_ref.with_file_name(namebase)
+    }
+
+    pub fn outputs(&self) -> Result<Outputs, failure::Error> {
+        Ok(Outputs {
+            read_aligns_all: Outputs::output(self.output_filename("-read-aligns-all.txt"))?,
+            read_aligns_unique: Outputs::output(self.output_filename("-read-aligns-unique.txt"))?,
+            barcode_assign_all: Outputs::output(self.output_filename("-barcode-assign-all.txt"))?,
+            barcode_assign_unambig: Outputs::output(self.output_filename("-barcode-assign-umabig.txt"))?,
+            barcode_assign_unique: Outputs::output(self.output_filename("-barcode-assign-unique.txt"))?,
+            barcode_assign_bed: Outputs::output(self.output_filename("-barcode-assign.bed"))?,
+        })
+    }
+    
+    pub fn run(&self) -> Result<(), failure::Error> {
+        let mut read_inserts_good = std::fs::File::open(self.inserts_good_file())?;
+        let mut frags_aligned = bam::Reader::from_path(self.frags_aligned_file())?;
+
+        let mut outputs = self.outputs()?;
+
+        pacbio_join(&mut read_inserts_good, frags_aligned, &mut outputs)
+    }
+}
+
+pub struct Outputs {
+    read_aligns_all: Box<dyn Write>,
+    read_aligns_unique: Box<dyn Write>,
+
+    barcode_assign_all: Box<dyn Write>,
+    barcode_assign_unambig: Box<dyn Write>,
+    barcode_assign_unique: Box<dyn Write>,
+    barcode_assign_bed: Box<dyn Write>,
+}
+
+impl Outputs {
+    pub fn read_aligns_all(&mut self) -> &mut Write { &mut self.read_aligns_all }
+    pub fn read_aligns_unique(&mut self) -> &mut Write { &mut self.read_aligns_unique }
+
+    pub fn barcode_assign_all(&mut self) -> &mut Write { &mut self.barcode_assign_all }
+    pub fn barcode_assign_unambig(&mut self) -> &mut Write { &mut self.barcode_assign_unambig }
+    pub fn barcode_assign_unique(&mut self) -> &mut Write { &mut self.barcode_assign_unique }
+    pub fn barcode_assign_bed(&mut self) -> &mut Write { &mut self.barcode_assign_bed }
+
+    pub fn output<P: AsRef<Path>>(filename: P) -> Result<Box<dyn Write>, failure::Error> {
+        Ok(Box::new(std::fs::File::create(filename)?))
+    }
+}
+
+pub fn pacbio_join<R: std::io::Read>(read_inserts_good: R, mut frags_aligned: bam::Reader, outputs: &mut Outputs) -> Result<(), failure::Error>
+{
     let mut read_to_barcode = HashMap::new();
     let mut read_to_aligns = HashMap::new();
     let mut barcode_to_reads = HashMap::new();
 
-    let barcodes_in = BufReader::new(std::fs::File::open(input_filename(&in_base, "-read-inserts-good.txt"))?);
+    let barcodes_in = BufReader::new(read_inserts_good);
     for line_res in barcodes_in.lines() {
         let line = line_res?;
         let fields: Vec<&str> = line.split("\t").collect();
@@ -31,15 +110,14 @@ pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> R
         }
     }
 
-    let mut aligns_in = bam::Reader::from_path(input_filename(&in_base, "-frags_aligned.bam"))?;
-    let target_names_res: Result<Vec<_>, _> = aligns_in
+    let target_names_res: Result<Vec<_>, _> = frags_aligned
         .header()
         .target_names()
         .into_iter()
         .map(|t| String::from_utf8(t.to_vec()))
         .collect();
     let target_names = target_names_res?;
-    for res in aligns_in.records() {
+    for res in frags_aligned.records() {
         let r = res?;
         let qname = String::from_utf8(r.qname().to_vec())?;
 
@@ -52,31 +130,23 @@ pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> R
         aligns.sort_by_key(&align_sort_key);
     }
     
-    let mut align_all_out = std::fs::File::create(output_filename(&out_base, "-read-aligns-all.txt"))?;
-    let mut align_unique_out = std::fs::File::create(output_filename(&out_base, "-read-aligns-unique.txt"))?;
-    
     for (&ref read, &(ref barcode, ref library)) in read_to_barcode.iter() {
-        write!(align_all_out, "{}\t{}\t", barcode, library)?;
+        write!(outputs.read_aligns_all(), "{}\t{}\t", barcode, library)?;
         if let Some(aligns) = read_to_aligns.get(read) {
             let status = if aligns.len() == 1 { "Unique" } else { "Multi" };
             let terse: Result<Vec<_>,_> = aligns.iter().map(|a| terse_align(&target_names, a)).collect();
-            write!(align_all_out, "{}\t{}\n", status, terse?.join("\t"))?;
+            write!(outputs.read_aligns_all(), "{}\t{}\n", status, terse?.join("\t"))?;
 
             if aligns.len() == 1 {
-                write!(align_unique_out,
+                write!(outputs.read_aligns_unique(),
                        "{}\t{}\t{}\n",
                        barcode, library,
                        format_align(&target_names, &aligns[0])?)?;
             }
         } else {
-            write!(align_all_out, "None\n")?;
+            write!(outputs.read_aligns_all(), "None\n")?;
         }
     }
-
-    let mut barcode_all_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign-all.txt"))?;
-    let mut barcode_unambig_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign-unambig.txt"))?;
-    let mut barcode_unique_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign-unique.txt"))?;
-    let mut barcode_bed_out = std::fs::File::create(output_filename(&out_base, "-barcode-assign.bed"))?;
 
     let empty = Vec::new();
     
@@ -91,12 +161,12 @@ pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> R
             .collect();
 
         write!(
-            barcode_all_out,
+            outputs.barcode_assign_all(),
             "{}\t{}\t{}\t",
             barcode, library, reads.len())?;
         
         if is_ambiguous(&aligns) {
-            write!(barcode_all_out,
+            write!(outputs.barcode_assign_all(),
                    "Ambig\t{}\n",
                    format_ambiguous(&target_names, &aligns)?)?;
             continue;
@@ -106,12 +176,12 @@ pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> R
 
         let status = if unambig.len() == 0 { "None" } else if unambig.len() > 1 { "Multi" } else { "Unique" };
 
-        write!(barcode_all_out, "{}\n", status)?;
+        write!(outputs.barcode_assign_all(), "{}\n", status)?;
         
         let terse_res: Result<Vec<_>,_> = unambig.iter().map(|aln| terse_align(&target_names, aln)).collect();
         
         write!(
-            barcode_unambig_out,
+            outputs.barcode_assign_unambig(),
             "{}\t{}\t{}\t{}\t{}\n",
             barcode, library, 
             reads.len(), status,
@@ -121,14 +191,14 @@ pub fn pacbio_join<P: AsRef<Path>, Q: AsRef<Path>>(in_base: Q, out_base: P) -> R
             let frag = &unambig[0];
             
             write!(
-                barcode_unique_out,
+                outputs.barcode_assign_unique(),
                 "{}\t{}\t{}\t{}\n",
                 barcode, library,
                 reads.len(),
                 format_align(&target_names, frag)?)?;
 
             write!(
-                barcode_bed_out,
+                outputs.barcode_assign_bed(),
                 "{}\t{}\t{}\t{}_{}\t{}\t{}\n",
                 target_names[frag.tid() as usize],
                 frag.pos(),
