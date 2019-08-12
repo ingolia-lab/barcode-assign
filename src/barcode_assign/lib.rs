@@ -10,6 +10,7 @@ pub mod bc_frag;
 pub mod bc_seqs;
 pub mod bc_tabulate;
 pub mod counts;
+pub mod collapse;
 pub mod depth;
 pub mod fastq_pair;
 pub mod flank_match;
