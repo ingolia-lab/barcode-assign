@@ -1,7 +1,6 @@
 extern crate bio;
 #[macro_use]
 extern crate clap;
-#[macro_use]
 extern crate rust_htslib;
 extern crate barcode_assign;
 extern crate failure;
@@ -14,7 +13,6 @@ use std::path::PathBuf;
 use std::str;
 
 use clap::{App, Arg};
-use failure::Error;
 use rust_htslib::bam;
 use rust_htslib::prelude::*;
 

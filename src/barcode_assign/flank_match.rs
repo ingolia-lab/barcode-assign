@@ -105,7 +105,9 @@ impl<'a> LibMatch<'a> {
 pub struct FlankMatchSpec {
     before_myers: Myers<u64>,
     after_myers: Myers<u64>,
+    #[allow(dead_code)]
     before: Vec<u8>,
+    #[allow(dead_code)]
     after: Vec<u8>,
     max_errors: u8,
 }

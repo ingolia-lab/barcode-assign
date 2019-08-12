@@ -63,7 +63,7 @@ impl CLI {
 
     pub fn run(&self) -> Result<(), failure::Error> {
         let mut read_inserts_good = std::fs::File::open(self.inserts_good_file())?;
-        let mut frags_aligned = bam::Reader::from_path(self.frags_aligned_file())?;
+        let frags_aligned = bam::Reader::from_path(self.frags_aligned_file())?;
 
         let mut outputs = self.outputs()?;
 

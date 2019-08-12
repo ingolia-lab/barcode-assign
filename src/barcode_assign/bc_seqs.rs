@@ -38,12 +38,12 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
     }
 
     if let Some(barcode_filename) = config.out_barcodes {
-        let mut barcode_writer = File::create(barcode_filename)?;
+        let barcode_writer = File::create(barcode_filename)?;
         write_barcode_table(barcode_writer, &barcode_counts)?;
     }
 
     if let Some(freq_filename) = config.out_barcode_freqs {
-        let mut freq_writer = File::create(freq_filename)?;
+        let freq_writer = File::create(freq_filename)?;
         write_freq_table(freq_writer, &barcode_counts)?;
     }
 
