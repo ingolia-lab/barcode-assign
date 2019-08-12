@@ -4,7 +4,7 @@ extern crate failure;
 
 use std::io::Write;
 
-use clap::{App,Arg};
+use clap::{App, Arg};
 
 use barcode_assign::pacbio_join::CLI;
 
@@ -20,7 +20,8 @@ fn main() {
                 .value_name("INBASE")
                 .help("Base name for input files")
                 .takes_value(true)
-                .required(true))
+                .required(true),
+        )
         .arg(
             Arg::with_name("outbase")
                 .short("o")
@@ -28,16 +29,17 @@ fn main() {
                 .value_name("OUTBASE")
                 .help("Base name for output files")
                 .takes_value(true)
-                .required(true))
+                .required(true),
+        )
         .get_matches();
-    
+
     let cli = CLI {
         input_base: matches.value_of("inbase").unwrap().to_string(),
         inserts_good_file: None,
         frags_aligned_file: None,
         output_base: matches.value_of("outbase").unwrap().to_string(),
     };
-    
+
     match cli.run() {
         Ok(_) => (),
         Err(err) => {
