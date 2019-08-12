@@ -1,21 +1,23 @@
 use std::boxed::Box;
 use std::cmp::*;
 use std::fs;
-use std::io::{BufRead,BufReader,Read,Write};
+use std::io::{BufRead,BufReader,Write};
 use std::path::{Path,PathBuf};
 use std::str::FromStr;
 
 use bio::alphabets::dna;
 use bio::io::fasta;
-use bio::io::fastq;
-use bio::io::fastq::FastqRead;
+//use bio::io::fastq;
+//use bio::io::fastq::FastqRead;
 use failure;
+use rust_htslib::bam;
+use rust_htslib::bam::Read;
 
 use flank_match::*;
 
 #[derive(Debug)]
 pub struct CLI {
-    pub input_fastq: String,
+    pub input_bam: String,
     pub input_specs_file: String,
     pub output_base: String,
     pub output_file_frags: Option<String>,
@@ -115,19 +117,16 @@ impl CLI {
     }
     
     pub fn run(&self) -> Result<(), failure::Error> {
-        let fastq_reader: Box<dyn Read> = if self.input_fastq == "-" {
-            Box::new(std::io::stdin())
+        let mut bam_in = if self.input_bam == "-" {
+            bam::Reader::from_stdin()?
         } else {
-            Box::new(std::fs::File::open(&self.input_fastq)?)
+            bam::Reader::from_path(&self.input_bam)?
         };
-      
-        {
-            let mut fastq_in = fastq::Reader::new(fastq_reader);
-            let mut specs = self.read_lib_specs()?;
-            let mut outputs = self.outputs()?;
-            
-            pacbio_reads(specs.as_mut(), &mut fastq_in, &mut outputs)
-        }
+
+        let mut specs = self.read_lib_specs()?;
+        let mut outputs = self.outputs()?;
+        
+        pacbio_reads(specs.as_mut(), &mut bam_in, &mut outputs)
     }
 }
 
@@ -145,21 +144,28 @@ impl Outputs {
     pub fn matching(&mut self) -> &mut Write { self.matching.as_mut() }
 }
 
-pub fn pacbio_reads<R: Read>(specs: &mut [LibSpec], fastq_in: &mut fastq::Reader<R>, outputs: &mut Outputs) -> Result<(), failure::Error>
+pub fn extract_read_id(qname: &[u8]) -> &[u8] {
+    let mut slash_iter = qname.rsplitn(2, |&ch| ch == b'/');
+    let split_final = slash_iter.next().unwrap();
+    slash_iter.next().unwrap_or(split_final)
+        // &rec.qname()[0..rec.qname().rfind("/").unwrap_or(rec.qname().len())];
+}
+
+pub fn pacbio_reads(specs: &mut [LibSpec], bam_in: &mut bam::Reader, outputs: &mut Outputs) -> Result<(), failure::Error>
 {
-    let mut rec = fastq::Record::new();
+    let mut rec = bam::Record::new();
     
     loop {
-        fastq_in.read(&mut rec)?;
-
-        if rec.is_empty() {
-            return Ok(());
+        match bam_in.read(&mut rec) {
+            Ok(()) => (),
+            Err(bam::ReadError::NoMoreRecord) => { return Ok(()) },
+            Err(e) => { bail!(e) },
         }
-
-        let read_id = &rec.id()[0..rec.id().rfind("/").unwrap_or(rec.id().len())];
-
-        let sequ_fwd = rec.seq();
-        let sequ_rev = dna::revcomp(sequ_fwd);
+        
+        let read_id = String::from_utf8_lossy(extract_read_id(rec.qname()));
+        
+        let sequ_fwd = rec.seq().as_bytes();
+        let sequ_rev = dna::revcomp(&sequ_fwd);
         let lib_matches: Vec<(String, String, LibMatchOut)> = specs
             .iter_mut()
             .flat_map(|ref mut spec| {
