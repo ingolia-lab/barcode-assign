@@ -87,10 +87,6 @@ impl CLI {
                 last_report = std::time::Instant::now();
                 last_recno = recno;
             }
-
-            if recno > 10000000 {
-                break;
-            }
         }
         
         nbhds.write_nbhds(std::fs::File::create(&self.output)?)
