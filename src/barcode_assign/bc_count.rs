@@ -19,17 +19,7 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
     };
     let barcode_reader = fastq::Reader::new(reader);
 
-    let mut barcode_counts = HashMap::new();
-
-    let records = barcode_reader.records();
-
-    for result in records {
-        let barcode_record = result?;
-
-        let barcode = String::from_utf8(barcode_record.seq().to_vec())?;
-        let barcode_count = barcode_counts.entry(barcode.to_string()).or_insert(0);
-        *barcode_count += 1;
-    }
+    let barcode_counts = count_barcodes(barcode_reader)?;
 
     let writer: Box<Write> = if config.out_barcodes == "-" {
         Box::new(io::stdout())
@@ -46,9 +36,23 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
     Ok(())
 }
 
+pub fn count_barcodes<R: Read>(barcode_reader: fastq::Reader<R>) -> Result<HashMap<Vec<u8>, usize>, failure::Error> {
+    let mut barcode_counts = HashMap::new();
+    
+    for (_recno, rec_res) in barcode_reader.records().enumerate() {
+        let rec = rec_res?;
+        
+        let barcode = rec.seq().to_vec();
+        let barcode_count = barcode_counts.entry(barcode).or_insert(0);
+        *barcode_count += 1;
+    }
+
+    Ok(barcode_counts)
+}
+
 fn write_barcode_table<W>(
     barcode_out: W,
-    barcode_counts: &HashMap<String, usize>,
+    barcode_counts: &HashMap<Vec<u8>, usize>,
 ) -> Result<(), failure::Error>
 where
     W: std::io::Write,
@@ -56,10 +60,8 @@ where
     let mut bcout = std::io::BufWriter::new(barcode_out);
 
     for (barcode, count) in barcode_counts.iter() {
-        bcout.write(barcode.as_bytes())?;
-        bcout.write("\t".as_bytes())?;
-        bcout.write(count.to_string().as_bytes())?;
-        bcout.write("\n".as_bytes())?;
+        write!(bcout, "{}\t{}\n",
+               String::from_utf8_lossy(barcode), count)?;
     }
 
     Ok(())
@@ -67,7 +69,7 @@ where
 
 fn write_freq_table<W>(
     freq_out: W,
-    barcode_counts: &HashMap<String, usize>,
+    barcode_counts: &HashMap<Vec<u8>, usize>,
 ) -> Result<(), failure::Error>
 where
     W: std::io::Write,
