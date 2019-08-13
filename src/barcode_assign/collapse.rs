@@ -151,6 +151,39 @@ impl Neighborhood<usize> {
     pub fn total(&self) -> usize {
         self.barcodes().map(|(_, ct)| *ct).sum()
     }
+
+    pub fn write_total_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
+        write!(out, "{}\t{}\n", String::from_utf8_lossy(self.key_barcode().0), self.total())
+    }
+
+    pub fn write_barcode_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
+        let (keybc, keyct) = self.key_barcode();
+        let total = self.total();
+        
+        for (bc, ct) in self.barcodes() {
+            write!(out, "{}\t{}\t{}\t{}\t{:0.3}\n",
+                   String::from_utf8_lossy(bc),
+                   String::from_utf8_lossy(keybc),
+                   ct, total, (*ct as f64) / (total as f64))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn write_nbhd_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
+        let (keybc, keyct) = self.key_barcode();
+        let total = self.total();
+
+        write!(out, "{}\t{}\t{}\t{:0.3}",
+               String::from_utf8_lossy(keybc),
+               self.len(), total,
+               (*keyct as f64) / (total as f64))?;
+        for (bc, ct) in self.barcodes() {
+            write!(out, "\t{}\t{}",
+                   String::from_utf8_lossy(bc), ct)?;
+        }
+        write!(out, "\n")        
+    }
 }
 
 // Switch to an interface where mutations (acting on a slice buffer)
