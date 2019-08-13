@@ -1,14 +1,12 @@
 use std::collections::HashMap;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
 use std::path::{Path,PathBuf};
 
-use bio::io::fastq;
-
-use bc_count::count_barcodes;
-
 pub struct CLI {
-    pub fastq_in: String,
+    pub input: String,
     pub output_base: String,
 }
 
@@ -23,14 +21,14 @@ impl CLI {
     }
 
     pub fn run(&self) -> Result<(), failure::Error> {
-        let reader: Box<Read> = if self.fastq_in == "-" {
+        let reader: Box<dyn Read> = if self.input == "-" {
             Box::new(std::io::stdin())
         } else {
-            Box::new(std::fs::File::open(&self.fastq_in)?)
+            Box::new(std::fs::File::open(&self.input)?)
         };
-        let barcode_reader = fastq::Reader::new(reader);
+        let mut barcode_reader = BufReader::new(reader);
 
-        let barcode_counts = count_barcodes(barcode_reader)?;
+        let barcode_counts = CLI::count_barcodes(&mut barcode_reader)?;
 
         let mut nbhds = Neighborhood::gather_neighborhoods(barcode_counts);
         for nbhd in nbhds.iter_mut() {
@@ -40,31 +38,28 @@ impl CLI {
         let mut barcode_to_nbhd_out = std::fs::File::create(self.output_filename("-barcode-to-nbhd.txt"))?;
         let mut nbhd_count_out = std::fs::File::create(self.output_filename("-nbhd-count.txt"))?;
         let mut nbhds_out = std::fs::File::create(self.output_filename("-nbhds.txt"))?;
-
+        
         for nbhd in nbhds.iter() {
-            let (keybc, keyct) = nbhd.key_barcode();
-            let total = nbhd.total();
-            write!(nbhd_count_out, "{}\t{}\n", String::from_utf8_lossy(keybc), nbhd.total())?;
-            
-            for (bc, ct) in nbhd.barcodes() {
-                write!(barcode_to_nbhd_out, "{}\t{}\t{}\t{}\t{:0.3}\n",
-                       String::from_utf8_lossy(bc),
-                       String::from_utf8_lossy(keybc),
-                       ct, total, (*ct as f64) / (total as f64))?;
-            }
-            
-            write!(nbhds_out, "{}\t{}\t{}\t{:0.3}",
-                   String::from_utf8_lossy(keybc),
-                   nbhd.len(), total,
-                   (*keyct as f64) / (total as f64))?;
-            for (bc, ct) in nbhd.barcodes() {
-                write!(nbhds_out, "\t{}\t{}",
-                       String::from_utf8_lossy(bc), ct)?;
-            }
-            write!(nbhds_out, "\n")?;            
+            nbhd.write_total_counts(&mut nbhd_count_out)?;
+            nbhd.write_barcode_counts(&mut barcode_to_nbhd_out)?;
+            nbhd.write_nbhd_counts(&mut nbhds_out)?;
         }
         
         Ok(())
+    }
+
+    pub fn count_barcodes<R: BufRead>(barcode_reader: &mut R) -> Result<HashMap<Vec<u8>, usize>, failure::Error> {
+        let mut barcode_counts = HashMap::new();
+        
+        for line_res in barcode_reader.lines() {
+            let line = line_res?;
+            
+            let barcode = line.into_bytes();
+            let barcode_count = barcode_counts.entry(barcode).or_insert(0);
+            *barcode_count += 1;
+        }
+        
+        Ok(barcode_counts)
     }
 }
 
@@ -157,7 +152,7 @@ impl Neighborhood<usize> {
     }
 
     pub fn write_barcode_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
-        let (keybc, keyct) = self.key_barcode();
+        let (keybc, _keyct) = self.key_barcode();
         let total = self.total();
         
         for (bc, ct) in self.barcodes() {
