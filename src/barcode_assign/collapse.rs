@@ -1,158 +1,155 @@
-use std::cell::RefCell;
-use std::collections::{HashMap,HashSet};
+use std::collections::HashMap;
+use std::io::Read;
 use std::io::Write;
-use std::rc::Rc;
+use std::path::{Path,PathBuf};
 
-use bio::pattern_matching::myers::Myers;
+use bio::io::fastq;
 
-// New barcode -- check first for exact match, then scan all existing barcodes
-//   for near-matches
-// Insert later barcodes with links to earlier barcodes?
-//   Or, create barcode equivalency sets?
+use bc_count::count_barcodes;
 
-// No need for complexity during counting -- post-process key set in
-// map to find neighborhoods. No need to handle insertions, can find
-// all edges with substitutions and deletions.
-
-// 1. Pick a node
-//    a. remove from key set
-//    b. initialize work stack with node
-// 2. Handle a node from work stack
-//    a. check key set for all near-neighbors
-//       i. remove near-neighbor from key set
-//       ii. push near-neighbor onto work stack
-//    b. add node to neighborhood
-
-pub fn gather_neighborhoods(mut bc_set: HashSet<Vec<u8>>) -> Vec<Vec<Vec<u8>>>
-{
-    let mut neighborhoods = Vec::new();
-    
-    loop {
-        let mut work_stack = Vec::new();
-        let mut neighborhood = Vec::new();
-        
-        let start_ref = match bc_set.iter().next() {
-            Some(start_ref) => start_ref,
-            None => { break; }
-        };
-        
-        // work_stack.push(bc_set.take(start_ref).unwrap());
-        let start = start_ref.to_vec();
-        bc_set.take(&start);
-        work_stack.push(start);
-
-        while work_stack.len() > 0 {
-            let curr = work_stack.pop().unwrap();
-
-            let neighbors = Substitutions::new(&curr).chain(Deletions::new(&curr));
-            for neighbor in neighbors {
-                if bc_set.remove(&neighbor) {
-                    work_stack.push(neighbor);
-                }
-            }
-
-            neighborhood.push(curr);
-        }
-
-        neighborhoods.push(neighborhood);
-    }
-
-    neighborhoods
+pub struct CLI {
+    pub fastq_in: String,
+    pub output_base: String,
 }
 
-pub struct BarcodeNbhdMap {
-    nbhds: Vec<Rc<RefCell<BarcodeNbhd>>>,
-    barcode_nbhds: HashMap<Vec<u8>, Rc<RefCell<BarcodeNbhd>>>,
-    max_dist: u8,
-}
-
-impl BarcodeNbhdMap {
-    pub fn new(max_dist: usize) -> Self {
-        BarcodeNbhdMap {
-            nbhds: Vec::new(),
-            barcode_nbhds: HashMap::new(),
-            max_dist: max_dist as u8,
-        }
+impl CLI {
+    pub fn output_filename(&self, name: &str) -> PathBuf {
+        let base_ref: &Path = self.output_base.as_ref();
+        let mut namebase = base_ref
+            .file_name()
+            .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        namebase.push(name);
+        base_ref.with_file_name(namebase)
     }
 
-    pub fn insert(&mut self, bc: &[u8]) -> () {
-        if self.barcode_nbhds.contains_key(bc) {
-            self.barcode_nbhds.get(bc).unwrap().borrow_mut().insert(bc);
+    pub fn run(&self) -> Result<(), failure::Error> {
+        let reader: Box<Read> = if self.fastq_in == "-" {
+            Box::new(std::io::stdin())
         } else {
-            let mut subst_iter = Substitutions::new(bc).chain(Deletions::new(bc)).chain(Insertions::new(bc));
-            let mut nbhd_found = false;
+            Box::new(std::fs::File::open(&self.fastq_in)?)
+        };
+        let barcode_reader = fastq::Reader::new(reader);
+
+        let barcode_counts = count_barcodes(barcode_reader)?;
+
+        let mut nbhds = Neighborhood::gather_neighborhoods(barcode_counts);
+        for nbhd in nbhds.iter_mut() {
+            nbhd.sort_by_counts();
+        }
+
+        let mut barcode_to_nbhd_out = std::fs::File::create(self.output_filename("-barcode-to-nbhd.txt"))?;
+        let mut nbhd_count_out = std::fs::File::create(self.output_filename("-nbhd-count.txt"))?;
+        let mut nbhds_out = std::fs::File::create(self.output_filename("-nbhds.txt"))?;
+
+        for nbhd in nbhds.iter() {
+            let (keybc, keyct) = nbhd.key_barcode();
+            let total = nbhd.total();
+            write!(nbhd_count_out, "{}\t{}\n", String::from_utf8_lossy(keybc), nbhd.total())?;
             
-            for subst in subst_iter {
-                if self.barcode_nbhds.contains_key(&subst) {
-                    let nbhd = self.barcode_nbhds.get(&subst).unwrap();
-                    nbhd.borrow_mut().insert(bc);
-                    self.barcode_nbhds.insert(bc.to_vec(), Rc::clone(nbhd));
-                    return;
-                }
+            for (bc, ct) in nbhd.barcodes() {
+                write!(barcode_to_nbhd_out, "{}\t{}\t{}\t{}\t{:0.3}\n",
+                       String::from_utf8_lossy(bc),
+                       String::from_utf8_lossy(keybc),
+                       ct, total, (*ct as f64) / (total as f64))?;
             }
             
-            let mut nbhd = BarcodeNbhd::new();
-            nbhd.insert(bc);
-            let mut nbhd_rc = Rc::new(RefCell::new(nbhd));
-            self.nbhds.push(Rc::clone(&nbhd_rc));
-            self.barcode_nbhds.insert(bc.to_vec(), nbhd_rc);
-        }
-    }
-
-    pub fn write_nbhds<W: Write>(&self, mut out: W) -> Result<(), failure::Error> {
-        for nbhd in self.nbhds.iter() {
-            let mut barcodes = nbhd.borrow().barcodes.clone();
-            barcodes.sort_by_key(|(_, ct)| -(*ct as isize));
-            let (keybc, keyct) = barcodes.first().unwrap();
-            let total: usize = barcodes.iter().map(|(_, ct)| *ct).sum();
-            write!(out, "{}\t{}\t{}\t{:0.3}",
+            write!(nbhds_out, "{}\t{}\t{}\t{:0.3}",
                    String::from_utf8_lossy(keybc),
-                   barcodes.len(), total,
+                   nbhd.len(), total,
                    (*keyct as f64) / (total as f64))?;
-            for (bc, ct) in barcodes.iter() {
-                write!(out, "\t{}\t{}",
+            for (bc, ct) in nbhd.barcodes() {
+                write!(nbhds_out, "\t{}\t{}",
                        String::from_utf8_lossy(bc), ct)?;
             }
-            write!(out, "\n")?;
+            write!(nbhds_out, "\n")?;            
         }
+        
         Ok(())
+    }
+}
+
+pub struct Neighborhood<T> {
+    barcodes: Vec<(Vec<u8>, T)>
+}
+
+impl <T> Neighborhood<T> {
+    fn new() -> Self {
+        Neighborhood {
+            barcodes: Vec::new()
+        }
     }
     
-    pub fn write_barcode_nbhds<W: Write>(&self, mut out: W) -> Result<(), failure::Error> {
-        for (key, val) in self.barcode_nbhds.iter() {
-            write!(out, "{}",
-                   String::from_utf8_lossy(key))?;
+    fn insert(&mut self, barcode: Vec<u8>, value: T) -> () {
+        self.barcodes.push((barcode, value));
+    }
+
+    pub fn barcodes(&self) -> impl Iterator<Item = &(Vec<u8>, T)> {
+        self.barcodes.iter()
+    }
+
+    pub fn len(&self) -> usize { self.barcodes.len() }
+
+    pub fn key_barcode(&self) -> (&[u8], &T) {
+        let (keybc, keyct) = self.barcodes.first().unwrap();
+        (keybc, keyct)
+    }
+    
+    // Collecting a neighborhood:
+    // 1. Pick a node arbitrarily
+    //    a. remove from key set
+    //    b. initialize work stack with node
+    // 2. Handle a node from work stack
+    //    a. check key set for all near-neighbors
+    //       i. remove near-neighbor from key set
+    //       ii. push near-neighbor onto work stack
+    //    b. add node to neighborhood
+    // 3. Repeat handling nodes from work stack until empty
+    
+    pub fn gather_neighborhoods(mut bc_map: HashMap<Vec<u8>, T>) -> Vec<Neighborhood<T>>
+    {
+        let mut neighborhoods = Vec::new();
+        
+        loop {
+            let mut work_stack = Vec::new();
+            let mut neighborhood = Neighborhood::new();
             
-            for (bc, ct) in val.borrow().barcodes.iter() {
-                write!(out, "\t{}\t{}",
-                       String::from_utf8_lossy(bc), ct)?;
+            let start_ref = match bc_map.iter().next() {
+                Some(start_ref) => start_ref,
+                None => { break; }
+            };
+            
+            let start = start_ref.0.to_vec();
+            let value = bc_map.remove(&start).unwrap();
+            work_stack.push((start, value));
+            
+            while work_stack.len() > 0 {
+                let (curr, curr_value) = work_stack.pop().unwrap();
+                
+                let neighbors = Substitutions::new(&curr).chain(Deletions::new(&curr)).chain(Insertions::new(&curr));
+                for neighbor in neighbors {
+                    if bc_map.contains_key(&neighbor) {
+                        let neighbor_value = bc_map.remove(&neighbor).unwrap();
+                        work_stack.push((neighbor, neighbor_value));
+                    }
+                }
+                
+                neighborhood.insert(curr, curr_value);
             }
-
-            write!(out, "\n")?;
+            
+            neighborhoods.push(neighborhood);
         }
-
-        Ok(())
+        
+        neighborhoods
     }
 }
 
-struct BarcodeNbhd {
-    barcodes: Vec<(Vec<u8>, usize)>,
-}
-
-impl BarcodeNbhd {
-    fn new() -> Self {
-        BarcodeNbhd { barcodes: Vec::new() }
+impl Neighborhood<usize> {
+    pub fn sort_by_counts(&mut self) -> () {
+        self.barcodes.sort_by_key(|(_, ct)| -(*ct as isize));
     }
 
-    fn insert(&mut self, bc_new: &[u8]) -> () {
-        for &mut (ref bc, ref mut ct) in self.barcodes.iter_mut() {
-            if bc_new == bc.as_slice() {
-                *ct += 1;
-                return;
-            }
-        }
-
-        self.barcodes.push((bc_new.to_vec(), 1));
+    pub fn total(&self) -> usize {
+        self.barcodes().map(|(_, ct)| *ct).sum()
     }
 }
 
