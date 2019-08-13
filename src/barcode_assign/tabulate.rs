@@ -1,6 +1,7 @@
 use failure;
 
 pub struct CLI {
+    pub inputs: Vec<String>,
     pub output: String,
     pub mintotal: Option<usize>,
     pub minsamples: Option<usize>,

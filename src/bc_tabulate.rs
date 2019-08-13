@@ -11,10 +11,17 @@ fn main() {
         .author("Nick Ingolia <ingolia@berkeley.edu>")
         .about("Tabulate barcode counts from many different samples")
         .arg(
+            Arg::with_name("inputs")
+                .index(1)
+                .multiple(true)
+                .takes_value(true)
+                .required(true)
+        )
+        .arg(
             Arg::with_name("output")
                 .short("o")
-                .long("outbase")
-                .value_name("OUTBASE")
+                .long("output")
+                .value_name("OUTPUT.TXT")
                 .help("Output filename for tab-delimited count table")
                 .takes_value(true)
                 .required(true),
@@ -56,6 +63,7 @@ fn main() {
     }
     
     let cli = CLI {
+        inputs: matches.values_of("inputs").unwrap().map(String::from).collect(),
         output: matches.value_of("output").unwrap().to_string(),
         mintotal: matches.value_of("mintotal").map(parse_int),
         minsamples: matches.value_of("minsamples").map(parse_int),
