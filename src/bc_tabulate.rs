@@ -1,6 +1,8 @@
 extern crate barcode_assign;
 extern crate clap;
 
+use std::io::Write;
+
 use clap::{App, Arg};
 
 use barcode_assign::tabulate::*;
@@ -59,7 +61,7 @@ fn main() {
         .get_matches();
 
     fn parse_int(value: &str) -> usize {
-        value.parse::<usize>().unwrap_or_else(|e| panic!("Bad whole number argument {:?}", value))
+        value.parse::<usize>().unwrap_or_else(|e| panic!("Bad whole number argument {:?}: {}", value, e))
     }
     
     let cli = CLI {
@@ -73,6 +75,9 @@ fn main() {
 
     match cli.run() {
         Ok(_) => (),
-        Err(e) => panic!(e),
+        Err(e) => {
+            std::io::stderr().write(format!("{}\n", e).as_bytes()).unwrap();
+            std::process::exit(1);
+        }
     }
 }
