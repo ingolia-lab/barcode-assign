@@ -15,3 +15,4 @@ pub mod frag_purity;
 pub mod pacbio_join;
 pub mod pacbio_reads;
 pub mod purity;
+pub mod tabulate;
