@@ -27,12 +27,21 @@ fn main() {
                 .takes_value(true)
                 .required(true),
         )
+        .arg(
+            Arg::with_name("neighborhood")
+                .short("n")
+                .long("neighborhood")
+                .value_name("NBHD_BASE")
+                .help("Analyze barcode mutation neighborhoods")
+                .takes_value(true),
+        )
         .get_matches();
 
     let config = Config {
         barcode_fastq: matches.value_of("fastq").unwrap().to_string(),
         out_barcodes: matches.value_of("output").unwrap().to_string(),
         freq_filename: None,
+        neighborhood: matches.value_of("neighborhood").map(|s| String::from(s)),
     };
 
     match bc_count(config) {
