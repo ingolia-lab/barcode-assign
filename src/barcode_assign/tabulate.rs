@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
+use std::io::Write;
 use std::path::Path;
 
 use failure;
@@ -26,10 +27,73 @@ impl CLI {
         }
         
         let total_counts = Self::total_read_counts(counts.iter().flat_map(|(_input, counts)| counts.iter()));
+        let mut barcodes: Vec<(String, usize)> = total_counts.into_iter().collect();
+        barcodes.sort_by_key(|(_barcode, counts)| -(*counts as isize));
+
+        let mut out = std::fs::File::create(&self.output)?;
+        write!(out, "barcode")?;
+        for (input, _input_counts) in counts.iter() {
+            write!(out, "\t{}", input)?;
+        }
+        write!(out, "\n")?;
+
+        let mut omit_out: Box<dyn Write> = match &self.omitfile {
+            Some(f) => Box::new(std::fs::File::create(f)?),
+            None => Box::new(std::io::sink()),
+        };
         
-        unimplemented!()
+        for (barcode, _counts) in barcodes.iter() {
+            let count_vec = Self::barcode_count_vec(&counts, barcode);
+            
+            if self.is_omitted(&count_vec) {
+                write!(omit_out, "{}\n", barcode)?;
+            } else {
+                write!(out, "{}", barcode)?;
+                for ct in count_vec.iter() {
+                    write!(out, "\t{}", ct)?;
+                }
+                write!(out, "\n")?;
+            }
+        }
+
+        Ok(())
     }
 
+    pub fn is_omitted(&self, count_vec: &Vec<usize>) -> bool {
+        if let Some(mintotal) = self.mintotal {
+            let total: usize = count_vec.iter().map(|ct| *ct).sum();
+            if total < mintotal {
+                return true;
+            }
+        }
+
+        if let Some(minsamples) = self.minsamples {
+            let nsamples: usize = count_vec.iter().map(|ct| if *ct > 0 { 1 } else { 0 }).sum();
+            if nsamples < minsamples {
+                return true;
+            }
+        }
+
+        if let Some(mininsample) = self.mininsample {
+            if count_vec.iter().max().unwrap_or(&0) < &mininsample {
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    pub fn barcode_count_vec(counts: &Vec<(String, HashMap<String, usize>)>,
+                             barcode: &str)
+                             -> Vec<usize>
+    {
+        let mut cvec = Vec::new();
+        for (_input, input_counts) in counts.iter() {
+            cvec.push(input_counts.get(barcode).map_or(0, |ct| *ct));
+        }
+        cvec
+    }
+    
     pub fn total_read_counts<'a, I: Iterator<Item = (&'a String, &'a usize)>>(read_counts: I) -> HashMap<String, usize> {
         let mut total_counts = HashMap::new();
         for (barcode, count) in read_counts {
