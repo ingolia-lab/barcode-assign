@@ -61,7 +61,7 @@ impl CLI {
 
     pub fn is_omitted(&self, count_vec: &Vec<usize>) -> bool {
         if let Some(mintotal) = self.mintotal {
-            let total: usize = count_vec.iter().map(|ct| *ct).sum();
+            let total: usize = count_vec.iter().copied().sum();
             if total < mintotal {
                 return true;
             }
@@ -75,7 +75,7 @@ impl CLI {
         }
 
         if let Some(mininsample) = self.mininsample {
-            if count_vec.iter().max().unwrap_or(&0) < &mininsample {
+            if count_vec.iter().max().copied().unwrap_or(0) < mininsample {
                 return true;
             }
         }
