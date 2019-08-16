@@ -1,12 +1,11 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::{Path,PathBuf};
 
 use bio::io::fastq;
 
-use collapse::Neighborhood;
-use counts::*;
+use neighborhood::Neighborhood;
+use counts::SampleCounts;
 
 #[derive(Debug)]
 pub struct Config {
@@ -39,9 +38,9 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
         barcode_counts.write_freq_table(File::create(freq_filename)?)?;
     }
 
-    // if let Some(nbhd_filename) = config.neighborhood {
-    //     neighborhood_counts(barcode_counts, &nbhd_filename)?;
-    // }
+    if let Some(nbhd_filename) = config.neighborhood {
+        neighborhood_counts(barcode_counts, &nbhd_filename)?;
+    }
     
     Ok(())
 }

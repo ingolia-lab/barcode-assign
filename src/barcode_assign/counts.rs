@@ -178,3 +178,29 @@ impl FromIterator<fastq::Record> for SampleCounts {
         SampleCounts(barcode_counts)
     }
 }
+
+impl <'a> FromIterator<&'a fasta::Record> for SampleCounts {
+    fn from_iter<I>(iter: I) -> SampleCounts
+        where I: IntoIterator<Item = &'a fasta::Record>
+    {
+        iter.into_iter().map(fasta::Record::seq).collect()
+    }
+}
+
+impl FromIterator<fasta::Record> for SampleCounts {
+    fn from_iter<I>(iter: I) -> SampleCounts
+        where I: IntoIterator<Item = fasta::Record>
+    {
+        let mut barcode_counts = HashMap::new();
+        
+        for rec in iter {
+            if barcode_counts.contains_key(rec.seq()) {
+                *(barcode_counts.get_mut(rec.seq()).unwrap()) += 1;
+            } else {
+                barcode_counts.insert(rec.seq().to_vec(), 1);
+            }
+        }
+
+        SampleCounts(barcode_counts)
+    }
+}

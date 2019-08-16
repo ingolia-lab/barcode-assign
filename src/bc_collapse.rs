@@ -1,12 +1,11 @@
 extern crate barcode_assign;
 extern crate bio;
 extern crate clap;
-#[macro_use]
 extern crate failure;
 
 use clap::{App, Arg};
 
-use barcode_assign::collapse::CLI;
+use barcode_assign::bc_collapse::CLI;
 
 fn main() {
     let matches = App::new("bc-collapse")
