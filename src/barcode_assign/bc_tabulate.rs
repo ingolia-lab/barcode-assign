@@ -22,8 +22,8 @@ impl CLI {
             counts.push((input.to_string(), input_counts));
         }
 
-        let total_counts = SampleCounts::total_counts(counts.iter().map(|(_input, counts)| counts));
-        let mut barcodes: Vec<(String, usize)> = total_counts.into_iter().collect();
+        let total_counts: SampleCounts = counts.iter().map(|(_input, counts)| counts).sum();
+        let mut barcodes: Vec<(Vec<u8>, usize)> = total_counts.into_iter().collect();
         barcodes.sort_by_key(|(_barcode, counts)| -(*counts as isize));
 
         let mut out = std::fs::File::create(&self.output)?;
@@ -45,9 +45,9 @@ impl CLI {
             );
 
             if self.is_omitted(&count_vec) {
-                write!(omit_out, "{}\n", barcode)?;
+                write!(omit_out, "{}\n", String::from_utf8_lossy(barcode))?;
             } else {
-                write!(out, "{}", barcode)?;
+                write!(out, "{}", String::from_utf8_lossy(barcode))?;
                 for ct in count_vec.iter() {
                     write!(out, "\t{}", ct)?;
                 }
