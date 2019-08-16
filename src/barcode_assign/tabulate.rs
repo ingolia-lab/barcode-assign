@@ -68,7 +68,7 @@ impl CLI {
         }
 
         if let Some(minsamples) = self.minsamples {
-            let nsamples: usize = count_vec.iter().map(|ct| if *ct > 0 { 1 } else { 0 }).sum();
+            let nsamples: usize = count_vec.iter().filter(|&&ct| ct > 0).count();
             if nsamples < minsamples {
                 return true;
             }
