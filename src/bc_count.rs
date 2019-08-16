@@ -6,7 +6,7 @@ use clap::{App, Arg};
 
 fn main() {
     let matches = App::new("bc-count")
-        .version("1.0")
+        .version("1.1")
         .author("Nick Ingolia <ingolia@berkeley.edu>")
         .about("Count barcode sequences")
         .arg(

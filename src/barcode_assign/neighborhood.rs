@@ -88,6 +88,8 @@ impl Neighborhood<usize> {
     pub fn write_total_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
         write!(out, "{}\t{}\n", String::from_utf8_lossy(self.key_barcode().0), self.total())
     }
+    
+    pub fn barcode_counts_header() -> &'static str { "barcode\tneighborhood\tcount\ttotal\tfraction" }
 
     pub fn write_barcode_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
         let (keybc, _keyct) = self.key_barcode();
@@ -103,6 +105,8 @@ impl Neighborhood<usize> {
         Ok(())
     }
 
+    pub fn nbhd_counts_header() -> &'static str { "neighborhood\tnum_barcodes\ttotal\tfract_nbhd" }
+    
     pub fn write_nbhd_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
         let (keybc, keyct) = self.key_barcode();
         let total = self.total();

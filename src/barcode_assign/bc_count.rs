@@ -55,6 +55,9 @@ fn neighborhood_counts(barcode_counts: SampleCounts, nbhd_filename: &str) -> Res
     for nbhd in nbhds.iter_mut() {
         nbhd.sort_by_counts();
     }
+
+    writeln!(barcode_to_nbhd_out, "{}", Neighborhood::barcode_counts_header())?;
+    writeln!(nbhds_out, "{}", Neighborhood::nbhd_counts_header())?;
     
     for nbhd in nbhds.iter() {
         nbhd.write_total_counts(&mut nbhd_count_out)?;
