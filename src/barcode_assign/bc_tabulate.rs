@@ -10,18 +10,18 @@ pub struct CLI {
     pub mintotal: Option<usize>,
     pub minsamples: Option<usize>,
     pub mininsample: Option<usize>,
-    pub omitfile: Option<String>
+    pub omitfile: Option<String>,
 }
 
 impl CLI {
     pub fn run(&self) -> Result<(), failure::Error> {
         let mut counts = Vec::new();
-        
+
         for input in self.inputs.iter() {
             let input_counts = SampleCounts::from_file(&input)?;
             counts.push((input.to_string(), input_counts));
         }
-        
+
         let total_counts = SampleCounts::total_counts(counts.iter().map(|(_input, counts)| counts));
         let mut barcodes: Vec<(String, usize)> = total_counts.into_iter().collect();
         barcodes.sort_by_key(|(_barcode, counts)| -(*counts as isize));
@@ -37,10 +37,13 @@ impl CLI {
             Some(f) => Box::new(std::fs::File::create(f)?),
             None => Box::new(std::io::sink()),
         };
-        
+
         for (barcode, _counts) in barcodes.iter() {
-            let count_vec = SampleCounts::barcode_count_vec(counts.iter().map(|(_input, counts)| counts), barcode);
-            
+            let count_vec = SampleCounts::barcode_count_vec(
+                counts.iter().map(|(_input, counts)| counts),
+                barcode,
+            );
+
             if self.is_omitted(&count_vec) {
                 write!(omit_out, "{}\n", barcode)?;
             } else {
@@ -75,8 +78,7 @@ impl CLI {
                 return true;
             }
         }
-        
+
         false
     }
-    
 }
