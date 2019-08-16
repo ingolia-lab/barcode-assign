@@ -22,7 +22,7 @@ impl CLI {
             counts.push((input.to_string(), input_counts));
         }
 
-        let total_counts = SampleCounts::total_counts(counts.iter().map(|(_input, counts)| counts));
+        let total_counts: SampleCounts = counts.iter().map(|(_input, counts)| counts).sum();
         let mut barcodes: Vec<(Vec<u8>, usize)> = total_counts.into_iter().collect();
         barcodes.sort_by_key(|(_barcode, counts)| -(*counts as isize));
 

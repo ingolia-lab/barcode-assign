@@ -5,22 +5,37 @@ use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
 use std::iter::FromIterator;
+use std::iter::Sum;
 use std::path::Path;
 
 use bio::io::fasta;
 use bio::io::fastq;
 use failure;
 
+/// Tabulation of barcode counts in a sample
 pub struct SampleCounts(HashMap<Vec<u8>, usize>);
 
 impl SampleCounts {
+    /// Returns a `HashMap` of barcodes and their counts
     pub fn count_map(self) -> HashMap<Vec<u8>, usize> { self.0 }
 
+    /// Reads a barcode count table from a file. 
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` is the name of the file that will be read.
     pub fn from_file<P: AsRef<Path> + Display>(filename: P) -> Result<Self, failure::Error> {
         Self::read(std::fs::File::open(filename.as_ref())?)
             .map_err(|e| format_err!("Reading file {}: {}", filename, e))
     }
 
+    /// Reads and parses a barcode count table.
+    ///
+    /// A barcode count table is a tab-delimited table of barcode<tab>count.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` is an input source that will be read.
     pub fn read<R: Read>(input: R) -> Result<Self, failure::Error> {
         let mut counts = HashMap::new();
 
@@ -57,6 +72,11 @@ impl SampleCounts {
         Ok(SampleCounts(counts))
     }
 
+    /// Writes a barcode count table.
+    ///
+    /// # Arguments
+    ///
+    /// * The table will be written to the output desntiation `barcode_out`
     pub fn write<W: Write>(&self, barcode_out: W) -> Result<(), failure::Error> {
         let mut bcout = std::io::BufWriter::new(barcode_out);
         
@@ -67,6 +87,15 @@ impl SampleCounts {
         Ok(())        
     }
 
+    /// Writes a barcode frequency table.
+    ///
+    /// The frequency table lists the number of barcodes seen 1 time,
+    /// 2 times, etc. The format of the table is
+    /// times-seen<tab>number-of-barcodes.
+    ///
+    /// # Arguments
+    ///
+    /// * The table will be written to the output desntiation `barcode_out`
     pub fn write_freq_table<W: Write>(&self, freq_out: W) -> Result<(), failure::Error> {
         let mut fout = std::io::BufWriter::new(freq_out);
         
@@ -87,17 +116,6 @@ impl SampleCounts {
         Ok(())
     }
 
-    pub fn total_counts<'a, I: Iterator<Item = &'a SampleCounts>>(counts_iter: I) -> Self {
-        let mut total_counts = HashMap::new();
-        for SampleCounts(count_map) in counts_iter {
-            for (barcode, count) in count_map.iter() {
-                let barcode_count = total_counts.entry(barcode.to_vec()).or_insert(0);
-                *barcode_count += *count;
-            }
-        }
-        SampleCounts(total_counts)
-    }
-
     pub fn barcode_count_vec<'a, I: Iterator<Item = &'a SampleCounts>>(
         counts_iter: I,
         barcode: &'a [u8],
@@ -105,6 +123,21 @@ impl SampleCounts {
         counts_iter
             .map(|SampleCounts(count_table)| count_table.get(barcode).map_or(0, |ct| *ct))
             .collect()
+    }
+}
+
+impl <'a> Sum<&'a SampleCounts> for SampleCounts {
+    fn sum<I>(iter: I) -> Self
+        where I: Iterator<Item = &'a SampleCounts>
+    {
+        let mut total_counts = HashMap::new();
+        for SampleCounts(count_map) in iter {
+            for (barcode, count) in count_map.iter() {
+                let barcode_count = total_counts.entry(barcode.to_vec()).or_insert(0);
+                *barcode_count += *count;
+            }
+        }
+        SampleCounts(total_counts)
     }
 }
 
