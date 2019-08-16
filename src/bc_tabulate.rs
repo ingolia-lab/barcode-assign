@@ -5,7 +5,7 @@ use std::io::Write;
 
 use clap::{App, Arg};
 
-use barcode_assign::tabulate::*;
+use barcode_assign::bc_tabulate::*;
 
 fn main() {
     let matches = App::new("bc-tabulate")
