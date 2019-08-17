@@ -277,7 +277,7 @@ mod tests {
         let insert_start = upstream.len() + before.len();
         let insert_end = insert_start + insert.len();
 
-        let match_spec_a = FlankMatchSpec::new(before, after, 0);
+        let mut match_spec_a = FlankMatchSpec::new(before, after, 0);
         let match_a = match_spec_a
             .best_match(&query_perfect)
             .flank_match()
@@ -294,7 +294,7 @@ mod tests {
         let query_before_mut = build_query(upstream, before_mut, insert, after, downstream);
         let match_before_mut = match_spec_a.best_match(&query_before_mut).flank_match();
         assert_eq!(match_before_mut, None);
-        let match_spec_b = FlankMatchSpec::new(before_mut, after, 0);
+        let mut match_spec_b = FlankMatchSpec::new(before_mut, after, 0);
         let match_b = match_spec_b.best_match(&query_perfect).flank_match();
         assert_eq!(match_b, None);
 
@@ -302,7 +302,7 @@ mod tests {
         let query_after_mut = build_query(upstream, before, insert, after_mut, downstream);
         let match_after_mut = match_spec_a.best_match(&query_after_mut).flank_match();
         assert_eq!(match_after_mut, None);
-        let match_spec_c = FlankMatchSpec::new(before, after_mut, 0);
+        let mut match_spec_c = FlankMatchSpec::new(before, after_mut, 0);
         let match_c = match_spec_c.best_match(&query_perfect).flank_match();
         assert_eq!(match_c, None);
     }
@@ -366,14 +366,14 @@ mod tests {
         insert_start: usize,
         insert_end: usize,
     ) {
-        let match_spec = FlankMatchSpec::new(before, after, max_errors);
+        let mut match_spec = FlankMatchSpec::new(before, after, max_errors);
         let match_out = match_spec.best_match(query).flank_match().unwrap();
         assert_eq!(match_out.insert_start(), insert_start);
         assert_eq!(match_out.insert_end(), insert_end);
     }
 
     fn assert_no_match(query: &[u8], before: &[u8], after: &[u8], max_errors: u8) {
-        let match_spec = FlankMatchSpec::new(before, after, max_errors);
+        let mut match_spec = FlankMatchSpec::new(before, after, max_errors);
         let match_out = match_spec.best_match(query).flank_match();
         assert_eq!(match_out, None);
     }
