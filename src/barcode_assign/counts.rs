@@ -25,9 +25,9 @@ impl SampleCounts {
     /// # Arguments
     ///
     /// * `filename` is the name of the file that will be read.
-    pub fn from_file<P: AsRef<Path> + Display>(filename: P) -> Result<Self, failure::Error> {
+    pub fn from_file<P: AsRef<Path> + std::fmt::Debug>(filename: P) -> Result<Self, failure::Error> {
         Self::read(std::fs::File::open(filename.as_ref())?)
-            .map_err(|e| format_err!("Reading file {}: {}", filename, e))
+            .map_err(|e| format_err!("Reading file {:?}: {}", filename, e))
     }
 
     /// Reads and parses a barcode count table.
@@ -263,6 +263,8 @@ impl FromIterator<fasta::Record> for SampleCounts {
 
 #[cfg(test)]
 mod tests {
+    extern crate tempfile;
+    
     use super::*;
 
     #[test]
@@ -322,6 +324,38 @@ mod tests {
         assert_eq!(cts.barcode_count(b"CAGTA"), 2);
         assert_eq!(cts.barcode_count(b"AATTA"), 6);
         assert_eq!(cts.barcode_count(b"ACTGA"), 0);
+
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        file.write_all(table.as_bytes()).unwrap();
+        let cts2 = SampleCounts::from_file(file.path()).unwrap();
+        assert_eq!(cts.count_map(), cts2.count_map());
+    }
+
+    #[test]
+    fn read_table_err() {
+        // Missing count on 2nd line
+        let table1 = "TACGGA\t3\nCAGTA\nAATTA\t6\n";
+        assert!(SampleCounts::read(table1.as_bytes()).is_err());
+
+        // Blank 3rd line
+        let table2 = "TACGGA\t3\nCAGTA\t2\n\nAATTA\t6\n";
+        assert!(SampleCounts::read(table2.as_bytes()).is_err());
+
+        // Blank line at the end
+        let table3 = "TACGGA\t3\nCAGTA\t2\nAATTA\t6\n\n";
+        assert!(SampleCounts::read(table3.as_bytes()).is_err());
+
+        // Extra field on 1st line
+        let table4 = "TACGGA\t3\textra\nCAGTA\t2\nAATTA\t6\n";
+        assert!(SampleCounts::read(table4.as_bytes()).is_err());
+
+        // 3rd line count doesn't parse as a number
+        let table5 = "TACGGA\t3\nCAGTA\t2\nAATTA\ta6\n";
+        assert!(SampleCounts::read(table5.as_bytes()).is_err());
+
+        // Duplicate entries for CAGTA
+        let table6 = "TACGGA\t3\nCAGTA\t2\nAATTA\t6\nCAGTA\t7\n";
+        assert!(SampleCounts::read(table6.as_bytes()).is_err());
     }
 
     #[test]
@@ -405,5 +439,17 @@ mod tests {
         let mut cvec: Vec<(Vec<u8>, usize)> = cts1.into_iter().collect();
         cvec.sort();
         assert_eq!(cvec, vec![(b"ACGTA".to_vec(), 3), (b"CGTAC".to_vec(), 7), (b"GTACG".to_vec(), 4)]);
+    }
+
+    #[test]
+    fn count_map() {
+        let table1 = "ACGTA\t3\nCGTAC\t7\nGTACG\t4\n";
+        let cts1 = SampleCounts::read(table1.as_bytes()).unwrap();
+        let ctmap = cts1.count_map();
+        let mut expmap = HashMap::new();
+        expmap.insert(b"ACGTA".to_vec(), 3);
+        expmap.insert(b"CGTAC".to_vec(), 7);
+        expmap.insert(b"GTACG".to_vec(), 4);
+        assert_eq!(ctmap, expmap);
     }
 }

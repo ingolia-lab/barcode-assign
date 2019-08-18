@@ -11,6 +11,9 @@ csv = "*"
 clap = "*"
 failure = "*"
 
+[dev-dependencies]
+tempfile = "*"
+
 [profile.dev]
 opt-level = 3
 
