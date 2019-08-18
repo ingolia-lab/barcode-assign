@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 
+#[derive(Debug)]
 pub struct Neighborhood<T> {
     barcodes: Vec<(Vec<u8>, T)>
 }
@@ -229,3 +230,104 @@ impl <'a> Iterator for Deletions<'a> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::borrow::Borrow;
+    use std::collections::HashSet;
+    use std::iter::FromIterator;
+    use counts::*;
+    
+    fn vec_count_map<V: AsRef<[u8]>, I: IntoIterator<Item = (V, usize)>>(bc_counts: I) -> HashMap<Vec<u8>, usize> {
+        let mut ctmap = HashMap::new();
+        for (bc, ct) in bc_counts {
+            if ctmap.insert(bc.as_ref().to_vec(), ct).is_some() {
+                panic!("Duplicate barcode {}",
+                       String::from_utf8_lossy(bc.as_ref()));
+            }
+        }
+        ctmap
+    }
+
+    fn nbhd_map<T: Clone, N: Borrow<Neighborhood<T>>>(nbhd: N) -> HashMap<Vec<u8>, T> {
+        nbhd.borrow().barcodes().map(|pair| pair.clone()).collect()
+    }
+    
+    #[test]
+    fn single_nbhd() {
+        let count_vec = vec![(b"ACGTACGT", 5),
+                             (b"ACGTTCGT", 3),
+                             (b"ACATACGT", 2),
+                             (b"ACATATGT", 1)];
+        
+        let nbhds = Neighborhood::gather_neighborhoods(vec_count_map(count_vec.clone()));
+        assert_eq!(nbhds.len(), 1);
+        let exp_nbhd: HashMap<Vec<u8>, usize> = vec_count_map(count_vec.clone());
+        let act_nbhd: HashMap<Vec<u8>, usize> = nbhd_map(&nbhds[0]);
+        assert_eq!(exp_nbhd, act_nbhd);
+    }
+
+    #[test]
+    fn two_nbhds() {
+        let count_vec_1 = vec![(b"ACGTACGT", 5),
+                               (b"ACGTTCGT", 3),
+                               (b"ACATACGT", 2)];
+        let count_vec_2 = vec![(b"CGTACGTA", 8),
+                               (b"CGTACGAA", 3)];
+
+        let mut count_vec = count_vec_1.clone();
+        count_vec.extend(count_vec_2.clone());
+
+        let nbhds = Neighborhood::gather_neighborhoods(vec_count_map(count_vec));
+        assert_eq!(nbhds.len(), 2);
+        let exp_nbhd_1 = vec_count_map(count_vec_1.clone());
+        let exp_nbhd_2 = vec_count_map(count_vec_2.clone());
+
+        if nbhd_map(&nbhds[0]) == exp_nbhd_1 {
+            assert_eq!(nbhd_map(&nbhds[1]), exp_nbhd_2);
+        } else {
+            assert_eq!(nbhd_map(&nbhds[0]), exp_nbhd_2);
+            assert_eq!(nbhd_map(&nbhds[1]), exp_nbhd_1);
+        }
+    }
+
+    #[test]
+    fn three_nbhds() {
+        let count_table = r#"ACGTACGT	5
+ACGTTCGT	3
+ACATACGT	2
+CGTACGTA	8
+CGTACGAA	4
+GTACGTACG	7
+GTACGTCG	1
+GTACGCACG	9
+GTACGCATCG	6"#;
+        let count_map = SampleCounts::read(count_table.as_bytes()).unwrap().count_map();
+        
+        let nbhds = Neighborhood::gather_neighborhoods(count_map);
+        assert_eq!(nbhds.len(), 3);
+
+        let mut exp_a = vec![b"ACGTACGT".to_vec(),
+                             b"ACGTTCGT".to_vec(),
+                             b"ACATACGT".to_vec()];
+        exp_a.sort();
+        let mut exp_c = vec![b"CGTACGTA".to_vec(),
+                             b"CGTACGAA".to_vec()];
+        exp_c.sort();
+        let mut exp_g = vec![b"GTACGTACG".to_vec(),
+                             b"GTACGTCG".to_vec(),
+                             b"GTACGCACG".to_vec(),
+                             b"GTACGCATCG".to_vec()];
+        exp_g.sort();
+        let mut exp = vec![exp_a, exp_c, exp_g];
+        exp.sort();
+
+        let mut act: Vec<Vec<Vec<u8>>> = nbhds.iter().map(|n| {
+            let mut n_act: Vec<Vec<u8>> = n.barcodes().map(|(bc, _ct)| bc.clone()).collect();
+            n_act.sort();
+            n_act }).collect();
+        act.sort();
+
+        assert_eq!(act, exp);
+    }
+}
