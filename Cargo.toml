@@ -13,6 +13,7 @@ failure = "*"
 
 [dev-dependencies]
 tempfile = "*"
+rand = "*"
 
 [profile.dev]
 opt-level = 3
