@@ -138,7 +138,7 @@ mod tests {
         let cts_a: SampleCounts = counts_to_sample(ctvec_a.iter());
 
         let mut count_file = tempfile::NamedTempFile::new().unwrap();
-        cts_a.write(&mut count_file);
+        cts_a.write(&mut count_file).unwrap();
         let count_path = count_file.into_temp_path();
 
         let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
@@ -154,10 +154,10 @@ mod tests {
         cli.run().unwrap();
         
         let mut exp_table = String::new();
-        writeln!(exp_table, "barcode\t{}", count_path.to_string_lossy());
+        writeln!(exp_table, "barcode\t{}", count_path.to_string_lossy()).unwrap();
         ctvec_a.sort_by_key(|(_bc, ct)| -(*ct as isize));
         for (bc, ct) in ctvec_a.iter() {
-            writeln!(exp_table, "{}\t{}", String::from_utf8_lossy(bc), *ct);
+            writeln!(exp_table, "{}\t{}", String::from_utf8_lossy(bc), *ct).unwrap();
         }
         let mut exp_lines: Vec<&str> = exp_table.lines().collect();
         exp_lines.sort();
@@ -180,20 +180,20 @@ mod tests {
         let barcodes_a = &all_barcodes[0..N_A];
         let barcodes_b = &all_barcodes[N_A..(N_A + N_B)];
         let barcodes_ab = &all_barcodes[(N_A + N_B)..(N_A + N_B + N_AB)];
-        let mut ctvec_a_only = barcode_counts(barcodes_a.iter().map(Vec::as_slice));
-        let mut ctvec_a_both = barcode_counts(barcodes_ab.iter().map(Vec::as_slice));
-        let mut ctvec_b_only = barcode_counts(barcodes_b.iter().map(Vec::as_slice));
-        let mut ctvec_b_both = barcode_counts(barcodes_ab.iter().map(Vec::as_slice));
+        let ctvec_a_only = barcode_counts(barcodes_a.iter().map(Vec::as_slice));
+        let ctvec_a_both = barcode_counts(barcodes_ab.iter().map(Vec::as_slice));
+        let ctvec_b_only = barcode_counts(barcodes_b.iter().map(Vec::as_slice));
+        let ctvec_b_both = barcode_counts(barcodes_ab.iter().map(Vec::as_slice));
 
         let cts_a: SampleCounts = counts_to_sample(ctvec_a_only.iter().chain(ctvec_a_both.iter()));
         let cts_b: SampleCounts = counts_to_sample(ctvec_b_only.iter().chain(ctvec_b_both.iter()));
 
         let mut count_a_file = tempfile::NamedTempFile::new().unwrap();
-        cts_a.write(&mut count_a_file);
+        cts_a.write(&mut count_a_file).unwrap();
         let count_a_path = count_a_file.into_temp_path();
 
         let mut count_b_file = tempfile::NamedTempFile::new().unwrap();
-        cts_b.write(&mut count_b_file);
+        cts_b.write(&mut count_b_file).unwrap();
         let count_b_path = count_b_file.into_temp_path();
 
         let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
@@ -212,7 +212,7 @@ mod tests {
         let mut exp_table = String::new();
         writeln!(exp_table, "barcode\t{}\t{}",
                  count_a_path.to_string_lossy(),
-                 count_b_path.to_string_lossy());
+                 count_b_path.to_string_lossy()).unwrap();
         for (bc, ct) in ctvec_a_only.iter() {
             writeln!(exp_table, "{}\t{}\t0", String::from_utf8_lossy(bc), *ct).unwrap();
         }
@@ -243,7 +243,7 @@ mod tests {
         const N_COUNT: usize = 4;
         const P_ZERO: f64 = 0.5;
         let all_barcodes = distinct_barcodes(N_BARCODE);
-        let mut ctvecs: Vec<Vec<(Vec<u8>, usize)>>
+        let ctvecs: Vec<Vec<(Vec<u8>, usize)>>
             = std::iter::repeat_with(||
                                      barcode_counts(all_barcodes.iter().map(Vec::as_slice))
                                      .into_iter()

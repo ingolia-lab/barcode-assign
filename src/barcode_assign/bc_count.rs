@@ -157,7 +157,7 @@ ACGTTGCA
         let mut records: Vec<fastq::Record> = counts.iter().flat_map(|(bc, ct)| barcode_records(bc, *ct)).collect();
         thread_rng().shuffle(&mut records);
         
-        let mut fastq_file = tempfile::NamedTempFile::new().unwrap();
+        let fastq_file = tempfile::NamedTempFile::new().unwrap();
         {
             let mut fastq_writer = fastq::Writer::new(&fastq_file);
             for rec in records.iter() {
@@ -198,7 +198,7 @@ ACGTTGCA
         let mut records: Vec<fastq::Record> = counts.iter().flat_map(|(bc, ct)| barcode_records(bc, *ct)).collect();
         thread_rng().shuffle(&mut records);
         
-        let mut fastq_file = tempfile::NamedTempFile::new().unwrap();
+        let fastq_file = tempfile::NamedTempFile::new().unwrap();
         {
             let mut fastq_writer = fastq::Writer::new(&fastq_file);
             for rec in records.iter() {
@@ -236,16 +236,16 @@ ACGTTGCA
 
     #[test]
     fn count_nbhd() {
-        let mut counts = vec![(b"ACGTACGT".to_vec(), 5),
-                              (b"ACGTTCGT".to_vec(), 3),
-                              (b"ACATACGT".to_vec(), 2),
-                              (b"CGTACGTA".to_vec(), 8),
-                              (b"CGTACGAA".to_vec(), 4),
-                              (b"GTACGTACG".to_vec(), 7),
-                              (b"GTACGTCG".to_vec(), 1),
-                              (b"GTACGCACG".to_vec(), 9),
-                              (b"GTACGCATCG".to_vec(), 6)];
-
+        let counts = vec![(b"ACGTACGT".to_vec(), 5),
+                          (b"ACGTTCGT".to_vec(), 3),
+                          (b"ACATACGT".to_vec(), 2),
+                          (b"CGTACGTA".to_vec(), 8),
+                          (b"CGTACGAA".to_vec(), 4),
+                          (b"GTACGTACG".to_vec(), 7),
+                          (b"GTACGTCG".to_vec(), 1),
+                          (b"GTACGCACG".to_vec(), 9),
+                          (b"GTACGCATCG".to_vec(), 6)];
+        
         let mut nbhds = vec![(b"ACGTACGT".to_vec(), 5 + 3 + 2),
                              (b"CGTACGTA".to_vec(), 8 + 4),
                              (b"GTACGCACG".to_vec(), 7 + 1 + 9 + 6)];
@@ -253,7 +253,7 @@ ACGTTGCA
         let mut records: Vec<fastq::Record> = counts.iter().flat_map(|(bc, ct)| barcode_records(bc, *ct)).collect();
         thread_rng().shuffle(&mut records);
         
-        let mut fastq_file = tempfile::NamedTempFile::new().unwrap();
+        let fastq_file = tempfile::NamedTempFile::new().unwrap();
         {
             let mut fastq_writer = fastq::Writer::new(&fastq_file);
             for rec in records.iter() {
