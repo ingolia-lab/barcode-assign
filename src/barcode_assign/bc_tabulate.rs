@@ -214,10 +214,10 @@ mod tests {
                  count_a_path.to_string_lossy(),
                  count_b_path.to_string_lossy());
         for (bc, ct) in ctvec_a_only.iter() {
-            writeln!(exp_table, "{}\t{}\t0", String::from_utf8_lossy(bc), *ct);
+            writeln!(exp_table, "{}\t{}\t0", String::from_utf8_lossy(bc), *ct).unwrap();
         }
         for (bc, ct) in ctvec_b_only.iter() {
-            writeln!(exp_table, "{}\t0\t{}", String::from_utf8_lossy(bc), *ct);
+            writeln!(exp_table, "{}\t0\t{}", String::from_utf8_lossy(bc), *ct).unwrap();
         }
         for ((bca, cta), (bcb, ctb)) in ctvec_a_both.iter().zip(ctvec_b_both.iter()) {
             assert_eq!(bca, bcb);
@@ -236,4 +236,70 @@ mod tests {
             assert_eq!(exp_line, act_line);
         }
     }
+
+    #[test]
+    fn tabulate_many() {
+        const N_BARCODE: usize = 200;
+        const N_COUNT: usize = 4;
+        const P_ZERO: f64 = 0.5;
+        let all_barcodes = distinct_barcodes(N_BARCODE);
+        let mut ctvecs: Vec<Vec<(Vec<u8>, usize)>>
+            = std::iter::repeat_with(||
+                                     barcode_counts(all_barcodes.iter().map(Vec::as_slice))
+                                     .into_iter()
+                                     .map(|(bc, ct)|
+                                          (bc, if thread_rng().next_f64() < P_ZERO { 0 } else { ct }))
+                                     .collect())
+            .take(N_COUNT)
+            .collect();
+
+        let mut count_paths = Vec::new();
+        
+        for ctvec in ctvecs.iter() {
+            let cts: SampleCounts = counts_to_sample(ctvec.iter().filter(|(_bc, ct)| *ct > 0));
+            let mut count_file = tempfile::NamedTempFile::new().unwrap();
+            cts.write(&mut count_file).unwrap();
+            count_paths.push(count_file.into_temp_path());
+        }
+
+        let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
+
+        let cli = CLI { inputs: count_paths.iter().map(|p| p.to_string_lossy().into_owned()).collect(),
+                        output: table_path.to_string_lossy().into_owned(),
+                        mintotal: None,
+                        minsamples: None,
+                        mininsample: None,
+                        omitfile: None
+        };
+
+        cli.run().unwrap();
+
+        let mut exp_table = String::new();
+
+        write!(exp_table, "barcode").unwrap();
+        for path in count_paths.iter() {
+            write!(exp_table, "\t{}", path.to_string_lossy()).unwrap();
+        }
+        write!(exp_table, "\n").unwrap();
+        for i in 0..ctvecs[0].len() {
+            if ctvecs.iter().all(|ctvec| ctvec[i].1 == 0) {
+                continue;
+            }
+            write!(exp_table, "{}", String::from_utf8_lossy(&ctvecs[0][i].0)).unwrap();
+            for ctvec in ctvecs.iter() {
+                write!(exp_table, "\t{}", ctvec[i].1).unwrap();
+            }
+            write!(exp_table, "\n").unwrap();
+        }
+        let mut exp_lines: Vec<&str> = exp_table.lines().collect();
+        exp_lines.sort();
+        
+        let out_table = String::from_utf8(std::fs::read(table_path).unwrap()).unwrap();
+        let mut out_lines: Vec<&str> = out_table.lines().collect();
+        out_lines.sort();
+        
+        for (exp_line, act_line) in exp_lines.iter().zip(out_lines.iter()) {
+            assert_eq!(exp_line, act_line);
+        }
+    }        
 }
