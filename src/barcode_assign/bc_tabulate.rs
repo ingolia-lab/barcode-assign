@@ -82,3 +82,158 @@ impl CLI {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate tempfile;
+    extern crate rand;
+
+    use std::collections::HashSet;
+    use std::fmt::Write;
+    use std::ops::Deref;
+    use bc_tabulate::tests::rand::distributions::Range;
+    use bc_tabulate::tests::rand::distributions::Sample;
+    use bc_tabulate::tests::rand::thread_rng;
+    use bc_tabulate::tests::rand::Rng;
+    
+    use super::*;
+
+    const NTS_LEN: usize = 4;
+    static NTS: [u8; NTS_LEN] = [b'A', b'C', b'G', b'T'];
+    
+    fn barcode(l: usize) -> Vec<u8> {
+        let mut bc = Vec::with_capacity(l);
+        for _i in 0..l {
+            bc.push(*thread_rng().choose(&NTS).unwrap());
+        }
+        bc
+    }
+
+    const BC_LEN: usize = 20;
+    
+    fn distinct_barcodes(n: usize) -> Vec<Vec<u8>> {
+        let mut bcset = HashSet::new();
+        while bcset.len() < n {
+            bcset.insert(barcode(BC_LEN));
+        }
+        bcset.into_iter().collect()
+    }
+
+    fn barcode_counts<B: Deref<Target=[u8]>, I: IntoIterator<Item = B>>(barcodes: I) -> Vec<(Vec<u8>, usize)> {
+        let mut bc_ct = Vec::new();
+        let mut ctdist = Range::new(1, 1234);
+        for bc in barcodes {
+            bc_ct.push((bc.deref().to_vec(), ctdist.sample(&mut thread_rng())));
+        }
+        bc_ct
+    }
+
+    fn counts_to_sample<'a, I: IntoIterator<Item = &'a (Vec<u8>, usize)>>(bc_cts: I) -> SampleCounts {
+        bc_cts.into_iter().flat_map(|(bc, ct)| std::iter::repeat(bc.as_slice()).take(*ct)).collect()
+    }
+    
+    #[test]
+    fn tabulate_one() {
+        let mut ctvec_a = barcode_counts(distinct_barcodes(200));
+        let cts_a: SampleCounts = counts_to_sample(ctvec_a.iter());
+
+        let mut count_file = tempfile::NamedTempFile::new().unwrap();
+        cts_a.write(&mut count_file);
+        let count_path = count_file.into_temp_path();
+
+        let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
+        
+        let cli = CLI { inputs: vec![ count_path.to_string_lossy().into_owned() ],
+                        output: table_path.to_string_lossy().into_owned(),
+                        mintotal: None,
+                        minsamples: None,
+                        mininsample: None,
+                        omitfile: None
+        };
+
+        cli.run().unwrap();
+        
+        let mut exp_table = String::new();
+        writeln!(exp_table, "barcode\t{}", count_path.to_string_lossy());
+        ctvec_a.sort_by_key(|(_bc, ct)| -(*ct as isize));
+        for (bc, ct) in ctvec_a.iter() {
+            writeln!(exp_table, "{}\t{}", String::from_utf8_lossy(bc), *ct);
+        }
+        let mut exp_lines: Vec<&str> = exp_table.lines().collect();
+        exp_lines.sort();
+        
+        let out_table = String::from_utf8(std::fs::read(table_path).unwrap()).unwrap();
+        let mut out_lines: Vec<&str> = out_table.lines().collect();
+        out_lines.sort();
+        
+        for (exp_line, act_line) in exp_lines.iter().zip(out_lines.iter()) {
+            assert_eq!(exp_line, act_line);
+        }
+    }
+
+    #[test]
+    fn tabulate_two() {
+        const N_A: usize = 50;
+        const N_B: usize = 50;
+        const N_AB: usize = 100;
+        let all_barcodes = distinct_barcodes(N_A + N_B + N_AB);
+        let barcodes_a = &all_barcodes[0..N_A];
+        let barcodes_b = &all_barcodes[N_A..(N_A + N_B)];
+        let barcodes_ab = &all_barcodes[(N_A + N_B)..(N_A + N_B + N_AB)];
+        let mut ctvec_a_only = barcode_counts(barcodes_a.iter().map(Vec::as_slice));
+        let mut ctvec_a_both = barcode_counts(barcodes_ab.iter().map(Vec::as_slice));
+        let mut ctvec_b_only = barcode_counts(barcodes_b.iter().map(Vec::as_slice));
+        let mut ctvec_b_both = barcode_counts(barcodes_ab.iter().map(Vec::as_slice));
+
+        let cts_a: SampleCounts = counts_to_sample(ctvec_a_only.iter().chain(ctvec_a_both.iter()));
+        let cts_b: SampleCounts = counts_to_sample(ctvec_b_only.iter().chain(ctvec_b_both.iter()));
+
+        let mut count_a_file = tempfile::NamedTempFile::new().unwrap();
+        cts_a.write(&mut count_a_file);
+        let count_a_path = count_a_file.into_temp_path();
+
+        let mut count_b_file = tempfile::NamedTempFile::new().unwrap();
+        cts_b.write(&mut count_b_file);
+        let count_b_path = count_b_file.into_temp_path();
+
+        let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
+        
+        let cli = CLI { inputs: vec![ count_a_path.to_string_lossy().into_owned(),
+                                      count_b_path.to_string_lossy().into_owned(), ],
+                        output: table_path.to_string_lossy().into_owned(),
+                        mintotal: None,
+                        minsamples: None,
+                        mininsample: None,
+                        omitfile: None
+        };
+
+        cli.run().unwrap();
+        
+        let mut exp_table = String::new();
+        writeln!(exp_table, "barcode\t{}\t{}",
+                 count_a_path.to_string_lossy(),
+                 count_b_path.to_string_lossy());
+        for (bc, ct) in ctvec_a_only.iter() {
+            writeln!(exp_table, "{}\t{}\t0", String::from_utf8_lossy(bc), *ct);
+        }
+        for (bc, ct) in ctvec_b_only.iter() {
+            writeln!(exp_table, "{}\t0\t{}", String::from_utf8_lossy(bc), *ct);
+        }
+        for ((bca, cta), (bcb, ctb)) in ctvec_a_both.iter().zip(ctvec_b_both.iter()) {
+            assert_eq!(bca, bcb);
+            writeln!(exp_table, "{}\t{}\t{}",
+                     String::from_utf8_lossy(bca),
+                     *cta, *ctb).unwrap();
+        }
+        let mut exp_lines: Vec<&str> = exp_table.lines().collect();
+        exp_lines.sort();
+        
+        let out_table = String::from_utf8(std::fs::read(table_path).unwrap()).unwrap();
+        let mut out_lines: Vec<&str> = out_table.lines().collect();
+        out_lines.sort();
+        
+        for (exp_line, act_line) in exp_lines.iter().zip(out_lines.iter()) {
+            assert_eq!(exp_line, act_line);
+        }
+    }
+}
