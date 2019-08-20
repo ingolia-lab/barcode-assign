@@ -234,8 +234,6 @@ impl <'a> Iterator for Deletions<'a> {
 mod tests {
     use super::*;
     use std::borrow::Borrow;
-    use std::collections::HashSet;
-    use std::iter::FromIterator;
     use counts::*;
     
     fn vec_count_map<V: AsRef<[u8]>, I: IntoIterator<Item = (V, usize)>>(bc_counts: I) -> HashMap<Vec<u8>, usize> {
