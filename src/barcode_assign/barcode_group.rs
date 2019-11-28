@@ -14,7 +14,7 @@ pub fn read_tag(r1: &bam::Record) -> Option<&[u8]> {
 pub struct BarcodeGroups<'a> {
     bam_reader: &'a mut bam::Reader,
     next_record: Option<bam::Record>,
-    read_barcode: &'a Fn(&bam::Record) -> Option<&[u8]>,
+    read_barcode: &'a dyn Fn(&bam::Record) -> Option<&[u8]>,
 }
 
 impl<'a> BarcodeGroups<'a> {
@@ -23,7 +23,7 @@ impl<'a> BarcodeGroups<'a> {
     }
 
     pub fn new(
-        read_barcode: &'a Fn(&bam::Record) -> Option<&[u8]>,
+        read_barcode: &'a dyn Fn(&bam::Record) -> Option<&[u8]>,
         bam_reader: &'a mut bam::Reader,
     ) -> Result<Self, failure::Error> {
         let mut bg = BarcodeGroups {

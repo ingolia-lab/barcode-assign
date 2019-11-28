@@ -157,13 +157,13 @@ impl Outputs {
     pub fn frags(&mut self) -> &mut fasta::Writer<Box<dyn Write>> {
         &mut self.frags
     }
-    pub fn inserts(&mut self) -> &mut Write {
+    pub fn inserts(&mut self) -> &mut dyn Write {
         self.inserts.as_mut()
     }
-    pub fn fates(&mut self) -> &mut Write {
+    pub fn fates(&mut self) -> &mut dyn Write {
         self.fates.as_mut()
     }
-    pub fn matching(&mut self) -> &mut Write {
+    pub fn matching(&mut self) -> &mut dyn Write {
         self.matching.as_mut()
     }
 }

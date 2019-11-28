@@ -82,23 +82,23 @@ pub struct Outputs {
 }
 
 impl Outputs {
-    pub fn read_aligns_all(&mut self) -> &mut Write {
+    pub fn read_aligns_all(&mut self) -> &mut dyn Write {
         &mut self.read_aligns_all
     }
-    pub fn read_aligns_unique(&mut self) -> &mut Write {
+    pub fn read_aligns_unique(&mut self) -> &mut dyn Write {
         &mut self.read_aligns_unique
     }
 
-    pub fn barcode_assign_all(&mut self) -> &mut Write {
+    pub fn barcode_assign_all(&mut self) -> &mut dyn Write {
         &mut self.barcode_assign_all
     }
-    pub fn barcode_assign_unambig(&mut self) -> &mut Write {
+    pub fn barcode_assign_unambig(&mut self) -> &mut dyn Write {
         &mut self.barcode_assign_unambig
     }
-    pub fn barcode_assign_unique(&mut self) -> &mut Write {
+    pub fn barcode_assign_unique(&mut self) -> &mut dyn Write {
         &mut self.barcode_assign_unique
     }
-    pub fn barcode_assign_bed(&mut self) -> &mut Write {
+    pub fn barcode_assign_bed(&mut self) -> &mut dyn Write {
         &mut self.barcode_assign_bed
     }
 

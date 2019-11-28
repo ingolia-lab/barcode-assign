@@ -16,7 +16,7 @@ pub struct Config {
 }
 
 pub fn bc_count(config: Config) -> Result<(), failure::Error> {
-    let reader: Box<Read> = if config.barcode_fastq == "-" {
+    let reader: Box<dyn Read> = if config.barcode_fastq == "-" {
         Box::new(io::stdin())
     } else {
         Box::new(File::open(&config.barcode_fastq)?)
@@ -27,7 +27,7 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
         = barcode_reader.records().collect();
     let barcode_counts = barcode_counts_res?;
     
-    let writer: Box<Write> = if config.out_barcodes == "-" {
+    let writer: Box<dyn Write> = if config.out_barcodes == "-" {
         Box::new(io::stdout())
     } else {
         Box::new(File::create(&config.out_barcodes)?)
