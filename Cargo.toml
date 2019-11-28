@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Nick Ingolia <ingolia@berkeley.edu>"]
 
 [dependencies]
-bio = "*"
+bio = "0.25"
 rust-htslib = "*"
 itertools = "*"
 csv = "*"
@@ -40,7 +40,7 @@ path = "src/bc_count.rs"
 
 [[bin]]
 name = "bc-grna"
-path = "src/bc-grna/main.rs"
+path = "src/bc_grna.rs"
 
 [[bin]]
 name = "bc-frag"
