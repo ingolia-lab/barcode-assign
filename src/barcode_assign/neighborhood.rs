@@ -77,9 +77,41 @@ impl <T> Neighborhood<T> {
     }
 }
 
+impl <T> Neighborhood<Vec<T>> {
+    pub fn sort_by_counts(&mut self) -> () {
+        fn cmp_entries<T>((bcl, entl): &(Vec<u8>, Vec<T>), (bcr, entr): &(Vec<u8>, Vec<T>)) -> std::cmp::Ordering {
+            match entl.len().cmp(&entr.len()) {
+                std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
+                std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
+                std::cmp::Ordering::Equal => {
+                    bcl.cmp(&bcr)
+                }
+            }
+        }
+        self.barcodes.sort_unstable_by(cmp_entries);
+    }
+
+    pub fn to_counts(&self) -> Neighborhood<usize> {
+        let mut count_nbhd = Neighborhood::new();
+        for (bc, ents) in self.barcodes.iter() {
+            count_nbhd.insert(bc.to_vec(), ents.len());
+        }
+        count_nbhd
+    }
+}
+
 impl Neighborhood<usize> {
     pub fn sort_by_counts(&mut self) -> () {
-        self.barcodes.sort_by_key(|(_, ct)| -(*ct as isize));
+        fn cmp_entries((bcl, ctl): &(Vec<u8>, usize), (bcr, ctr): &(Vec<u8>, usize)) -> std::cmp::Ordering {
+            match ctl.cmp(&ctr) {
+                std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
+                std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
+                std::cmp::Ordering::Equal => {
+                    bcl.cmp(&bcr)
+                }
+            }
+        }
+        self.barcodes.sort_unstable_by(cmp_entries);
     }
 
     pub fn total(&self) -> usize {

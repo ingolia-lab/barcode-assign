@@ -67,6 +67,14 @@ fn main() {
                 .takes_value(true)
                 .conflicts_with("no-bcfreq"),
         )
+        .arg(
+            Arg::with_name("neighborhood")
+                .short("n")
+                .long("neighborhood")
+                .value_name("NBHD_BASE")
+                .help("Group barcodes into single-mismatch neighborhoods")
+                .takes_value(true),
+        )
         .get_matches();
 
     let outbase = matches.value_of("outbase").unwrap();
@@ -93,6 +101,7 @@ fn main() {
         } else {
             Some(barcode_freqs)
         },
+        neighborhood: matches.value_of("neighborhood").map(|s| String::from(s)),
     };
 
     match bc_seqs(config) {
