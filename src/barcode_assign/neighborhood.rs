@@ -21,6 +21,10 @@ impl <T> Neighborhood<T> {
         self.barcodes.iter()
     }
 
+    pub fn into_barcodes(self) -> impl Iterator<Item = (Vec<u8>, T)> {
+        self.barcodes.into_iter()
+    }
+    
     pub fn len(&self) -> usize { self.barcodes.len() }
 
     pub fn key_barcode(&self) -> (&[u8], &T) {
