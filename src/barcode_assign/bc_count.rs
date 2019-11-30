@@ -4,7 +4,7 @@ use std::path::{Path,PathBuf};
 
 use bio::io::fastq;
 
-use neighborhood::Neighborhood;
+use neighborhood::*;
 use counts::SampleCounts;
 
 #[derive(Debug)]
@@ -51,13 +51,11 @@ fn neighborhood_counts(barcode_counts: SampleCounts, nbhd_filename: &str) -> Res
     let mut nbhd_count_out = std::fs::File::create(output_filename(nbhd_filename, "-nbhd-count.txt"))?;
     let mut nbhds_out = std::fs::File::create(output_filename(nbhd_filename, "-nbhds.txt"))?;
 
-    let mut nbhds = Neighborhood::gather_neighborhoods(barcode_counts.count_map());
-    for nbhd in nbhds.iter_mut() {
-        nbhd.sort_by_counts();
-    }
+    let nbhds_raw = Neighborhood::gather_neighborhoods(barcode_counts.count_map());
+    let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
-    writeln!(barcode_to_nbhd_out, "{}", Neighborhood::barcode_counts_header())?;
-    writeln!(nbhds_out, "{}", Neighborhood::nbhd_counts_header())?;
+    writeln!(barcode_to_nbhd_out, "{}", SortedNeighborhood::barcode_counts_header())?;
+    writeln!(nbhds_out, "{}", SortedNeighborhood::nbhd_counts_header())?;
     
     for nbhd in nbhds.iter() {
         nbhd.write_total_counts(&mut nbhd_count_out)?;

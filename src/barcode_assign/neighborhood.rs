@@ -27,11 +27,6 @@ impl <T> Neighborhood<T> {
     
     pub fn len(&self) -> usize { self.barcodes.len() }
 
-    pub fn key_barcode(&self) -> (&[u8], &T) {
-        let (keybc, keyct) = self.barcodes.first().unwrap();
-        (keybc, keyct)
-    }
-    
     // Collecting a neighborhood:
     // 1. Pick a node arbitrarily
     //    a. remove from key set
@@ -81,47 +76,70 @@ impl <T> Neighborhood<T> {
     }
 }
 
-impl <T> Neighborhood<Vec<T>> {
-    pub fn sort_by_counts(&mut self) -> () {
-        fn cmp_entries<T>((bcl, entl): &(Vec<u8>, Vec<T>), (bcr, entr): &(Vec<u8>, Vec<T>)) -> std::cmp::Ordering {
-            match entl.len().cmp(&entr.len()) {
-                std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
-                std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
-                std::cmp::Ordering::Equal => {
-                    bcl.cmp(&bcr)
-                }
-            }
-        }
-        self.barcodes.sort_unstable_by(cmp_entries);
-    }
-
-    pub fn to_counts(&self) -> Neighborhood<usize> {
-        let mut count_nbhd = Neighborhood::new();
-        for (bc, ents) in self.barcodes.iter() {
-            count_nbhd.insert(bc.to_vec(), ents.len());
-        }
-        count_nbhd
+impl <T: OrdEntry> Neighborhood<T> {
+    pub fn into_sorted(self) -> SortedNeighborhood<T> {
+        SortedNeighborhood::new(self.barcodes)
     }
 }
 
-impl Neighborhood<usize> {
-    pub fn sort_by_counts(&mut self) -> () {
-        fn cmp_entries((bcl, ctl): &(Vec<u8>, usize), (bcr, ctr): &(Vec<u8>, usize)) -> std::cmp::Ordering {
-            match ctl.cmp(&ctr) {
-                std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
-                std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
-                std::cmp::Ordering::Equal => {
-                    bcl.cmp(&bcr)
-                }
-            }
-        }
-        self.barcodes.sort_unstable_by(cmp_entries);
+pub trait OrdEntry {
+    fn entry_cmp(&self, other: &Self) -> std::cmp::Ordering;
+}
+
+impl OrdEntry for usize {
+    fn entry_cmp(&self, other: &Self) -> std::cmp::Ordering { self.cmp(other) }
+}
+
+impl <T> OrdEntry for Vec<T> {
+    fn entry_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.len().cmp(&other.len())
+    }
+}
+
+#[derive(Debug)]
+pub struct SortedNeighborhood<T> {
+    barcodes: Vec<(Vec<u8>, T)>
+}
+
+impl <T> SortedNeighborhood<T> {
+    pub fn barcodes(&self) -> impl Iterator<Item = &(Vec<u8>, T)> {
+        self.barcodes.iter()
     }
 
+    pub fn into_barcodes(self) -> impl Iterator<Item = (Vec<u8>, T)> {
+        self.barcodes.into_iter()
+    }
+    
+    pub fn len(&self) -> usize { self.barcodes.len() }
+
+    pub fn key_barcode(&self) -> (&[u8], &T) {
+        let (keybc, keyct) = self.barcodes.first().unwrap();
+        (keybc, keyct)
+    }
+}
+
+impl <T: OrdEntry> SortedNeighborhood<T> {
+    pub fn new(mut barcodes: Vec<(Vec<u8>, T)>) -> Self {
+        barcodes.sort_unstable_by(Self::cmp_entries);
+        SortedNeighborhood { barcodes: barcodes }
+    }
+
+    fn cmp_entries((bcl, ctl): &(Vec<u8>, T), (bcr, ctr): &(Vec<u8>, T)) -> std::cmp::Ordering {
+        match ctl.entry_cmp(&ctr) {
+            std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
+            std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
+            std::cmp::Ordering::Equal => {
+                bcl.cmp(&bcr)
+            }
+        }
+    }
+}
+
+impl SortedNeighborhood<usize> {
     pub fn total(&self) -> usize {
         self.barcodes().map(|(_, ct)| *ct).sum()
     }
-
+    
     pub fn write_total_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
         write!(out, "{}\t{}\n", String::from_utf8_lossy(self.key_barcode().0), self.total())
     }
@@ -157,6 +175,16 @@ impl Neighborhood<usize> {
                    String::from_utf8_lossy(bc), ct)?;
         }
         write!(out, "\n")        
+    }
+}
+
+impl <T> SortedNeighborhood<Vec<T>> {
+    pub fn to_counts(&self) -> SortedNeighborhood<usize> {
+        let mut barcode_counts = Vec::new();
+        for (bc, ents) in self.barcodes.iter() {
+            barcode_counts.push((bc.to_vec(), ents.len()));
+        }
+        SortedNeighborhood { barcodes: barcode_counts }
     }
 }
 

@@ -37,10 +37,8 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
     }
 
     let bc_recs = if let Some(nbhd_filename) = config.neighborhood {
-        let mut nbhds = Neighborhood::gather_neighborhoods(barcode_recs);
-        for nbhd in nbhds.iter_mut() {
-            nbhd.sort_by_counts();
-        }
+        let nbhds_raw = Neighborhood::gather_neighborhoods(barcode_recs);
+        let mut nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
         nbhds.sort_unstable_by(|nbhdl, nbhdr| nbhdl.key_barcode().0.cmp(nbhdr.key_barcode().0));
 
         let mut nbhd_recs = Vec::new();
@@ -60,8 +58,8 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
         let mut nbhd_count_out = std::fs::File::create(output_filename(&nbhd_filename, "-nbhd-count.txt"))?;
         let mut nbhds_out = std::fs::File::create(output_filename(&nbhd_filename, "-nbhds.txt"))?;
 
-        writeln!(barcode_to_nbhd_out, "{}", Neighborhood::barcode_counts_header())?;
-        writeln!(nbhds_out, "{}", Neighborhood::nbhd_counts_header())?;
+        writeln!(barcode_to_nbhd_out, "{}", SortedNeighborhood::barcode_counts_header())?;
+        writeln!(nbhds_out, "{}", SortedNeighborhood::nbhd_counts_header())?;
         
         for nbhd in nbhd_counts {
             nbhd.write_total_counts(&mut nbhd_count_out)?;

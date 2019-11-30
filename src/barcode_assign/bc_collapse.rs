@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::io::Read;
 use std::path::{Path,PathBuf};
 
-use neighborhood::Neighborhood;
+use neighborhood::*;
 
 pub struct CLI {
     pub input: String,
@@ -31,10 +31,8 @@ impl CLI {
 
         let barcode_counts = CLI::count_barcodes(&mut barcode_reader)?;
 
-        let mut nbhds = Neighborhood::gather_neighborhoods(barcode_counts);
-        for nbhd in nbhds.iter_mut() {
-            nbhd.sort_by_counts();
-        }
+        let nbhds_raw = Neighborhood::gather_neighborhoods(barcode_counts);
+        let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
         let mut barcode_to_nbhd_out = std::fs::File::create(self.output_filename("-barcode-to-nbhd.txt"))?;
         let mut nbhd_count_out = std::fs::File::create(self.output_filename("-nbhd-count.txt"))?;
