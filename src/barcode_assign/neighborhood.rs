@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::{Path,PathBuf};
 
 #[derive(Debug)]
 pub struct Neighborhood<T> {
@@ -139,9 +140,23 @@ impl SortedNeighborhood<usize> {
     pub fn total(&self) -> usize {
         self.barcodes().map(|(_, ct)| *ct).sum()
     }
-    
-    pub fn write_total_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
-        write!(out, "{}\t{}\n", String::from_utf8_lossy(self.key_barcode().0), self.total())
+
+    pub fn write_tables<'a, I>(filebase: &str, nbhd_iter: I) -> Result<(), std::io::Error>
+        where I: Iterator<Item = &'a SortedNeighborhood<usize>>
+    {
+        // Neighborhood grouping statistics
+        let mut barcodes_out = std::fs::File::create(Self::output_filename(filebase, "-raw-barcodes.txt"))?;
+        let mut nbhds_out = std::fs::File::create(Self::output_filename(filebase, "-nbhds.txt"))?;
+
+        writeln!(barcodes_out, "{}", SortedNeighborhood::barcode_counts_header())?;
+        writeln!(nbhds_out, "{}", SortedNeighborhood::nbhd_counts_header())?;
+        
+        for nbhd in nbhd_iter {
+            nbhd.write_barcode_counts(&mut barcodes_out)?;
+            nbhd.write_nbhd_counts(&mut nbhds_out)?;
+        }
+
+        Ok(())
     }
     
     pub fn barcode_counts_header() -> &'static str { "barcode\tneighborhood\tcount\ttotal\tfraction" }
@@ -160,21 +175,25 @@ impl SortedNeighborhood<usize> {
         Ok(())
     }
 
-    pub fn nbhd_counts_header() -> &'static str { "neighborhood\tnum_barcodes\ttotal\tfract_nbhd" }
+    pub fn nbhd_counts_header() -> &'static str { "neighborhood\tnum_barcodes\ttotal\tnkey\tfract_nbhd" }
     
     pub fn write_nbhd_counts<W: Write>(&self, out: &mut W) -> Result<(), std::io::Error> {
         let (keybc, keyct) = self.key_barcode();
         let total = self.total();
 
-        write!(out, "{}\t{}\t{}\t{:0.3}",
+        write!(out, "{}\t{}\t{}\t{}\t{:0.3}\n",
                String::from_utf8_lossy(keybc),
-               self.len(), total,
-               (*keyct as f64) / (total as f64))?;
-        for (bc, ct) in self.barcodes() {
-            write!(out, "\t{}\t{}",
-                   String::from_utf8_lossy(bc), ct)?;
-        }
-        write!(out, "\n")        
+               self.len(), total, *keyct,
+               (*keyct as f64) / (total as f64))
+    }
+
+    fn output_filename(output_base: &str, name: &str) -> PathBuf {
+        let base_ref: &Path = output_base.as_ref();
+        let mut namebase = base_ref
+            .file_name()
+            .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        namebase.push(name);
+        base_ref.with_file_name(namebase)
     }
 }
 

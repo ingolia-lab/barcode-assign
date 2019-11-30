@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path,PathBuf};
 
 use bio::io::fastq;
 
@@ -53,19 +52,7 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
             nbhd_recs.push((barcode, recs));
         }
 
-        // Neighborhood grouping statistics
-        let mut barcode_to_nbhd_out = std::fs::File::create(output_filename(&nbhd_filename, "-barcode-to-nbhd.txt"))?;
-        let mut nbhd_count_out = std::fs::File::create(output_filename(&nbhd_filename, "-nbhd-count.txt"))?;
-        let mut nbhds_out = std::fs::File::create(output_filename(&nbhd_filename, "-nbhds.txt"))?;
-
-        writeln!(barcode_to_nbhd_out, "{}", SortedNeighborhood::barcode_counts_header())?;
-        writeln!(nbhds_out, "{}", SortedNeighborhood::nbhd_counts_header())?;
-        
-        for nbhd in nbhd_counts {
-            nbhd.write_total_counts(&mut nbhd_count_out)?;
-            nbhd.write_barcode_counts(&mut barcode_to_nbhd_out)?;
-            nbhd.write_nbhd_counts(&mut nbhds_out)?;
-        }
+        SortedNeighborhood::write_tables(&nbhd_filename, nbhd_counts.iter())?;
 
         nbhd_recs
     } else {
@@ -145,11 +132,3 @@ where
     Ok(())
 }
 
-fn output_filename(output_base: &str, name: &str) -> PathBuf {
-    let base_ref: &Path = output_base.as_ref();
-    let mut namebase = base_ref
-        .file_name()
-        .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
-    namebase.push(name);
-    base_ref.with_file_name(namebase)
-}

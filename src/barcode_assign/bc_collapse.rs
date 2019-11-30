@@ -34,16 +34,8 @@ impl CLI {
         let nbhds_raw = Neighborhood::gather_neighborhoods(barcode_counts);
         let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
-        let mut barcode_to_nbhd_out = std::fs::File::create(self.output_filename("-barcode-to-nbhd.txt"))?;
-        let mut nbhd_count_out = std::fs::File::create(self.output_filename("-nbhd-count.txt"))?;
-        let mut nbhds_out = std::fs::File::create(self.output_filename("-nbhds.txt"))?;
-        
-        for nbhd in nbhds.iter() {
-            nbhd.write_total_counts(&mut nbhd_count_out)?;
-            nbhd.write_barcode_counts(&mut barcode_to_nbhd_out)?;
-            nbhd.write_nbhd_counts(&mut nbhds_out)?;
-        }
-        
+        SortedNeighborhood::write_tables(&self.output_base, nbhds.iter())?;
+
         Ok(())
     }
 

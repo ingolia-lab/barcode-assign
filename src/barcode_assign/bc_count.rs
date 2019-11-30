@@ -47,32 +47,12 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
 
 fn neighborhood_counts(barcode_counts: SampleCounts, nbhd_filename: &str) -> Result<(), failure::Error>
 {
-    let mut barcode_to_nbhd_out = std::fs::File::create(output_filename(nbhd_filename, "-barcode-to-nbhd.txt"))?;
-    let mut nbhd_count_out = std::fs::File::create(output_filename(nbhd_filename, "-nbhd-count.txt"))?;
-    let mut nbhds_out = std::fs::File::create(output_filename(nbhd_filename, "-nbhds.txt"))?;
-
     let nbhds_raw = Neighborhood::gather_neighborhoods(barcode_counts.count_map());
     let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
-    writeln!(barcode_to_nbhd_out, "{}", SortedNeighborhood::barcode_counts_header())?;
-    writeln!(nbhds_out, "{}", SortedNeighborhood::nbhd_counts_header())?;
-    
-    for nbhd in nbhds.iter() {
-        nbhd.write_total_counts(&mut nbhd_count_out)?;
-        nbhd.write_barcode_counts(&mut barcode_to_nbhd_out)?;
-        nbhd.write_nbhd_counts(&mut nbhds_out)?;
-    }
+    SortedNeighborhood::write_tables(&nbhd_filename, nbhds.iter())?;
 
     Ok(())
-}
-
-fn output_filename(output_base: &str, name: &str) -> PathBuf {
-    let base_ref: &Path = output_base.as_ref();
-    let mut namebase = base_ref
-        .file_name()
-        .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
-    namebase.push(name);
-    base_ref.with_file_name(namebase)
 }
 
 #[cfg(test)]
