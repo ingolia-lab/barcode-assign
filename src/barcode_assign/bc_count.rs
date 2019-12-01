@@ -26,33 +26,35 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
     let barcode_counts_res: Result<SampleCounts, std::io::Error>
         = barcode_reader.records().collect();
     let barcode_counts = barcode_counts_res?;
-    
+        
+    let final_counts = if let Some(nbhd_filename) = config.neighborhood {
+        neighborhood_counts(barcode_counts, &nbhd_filename)?
+    } else {
+        barcode_counts
+    };
+
     let writer: Box<dyn Write> = if config.out_barcodes == "-" {
         Box::new(io::stdout())
     } else {
         Box::new(File::create(&config.out_barcodes)?)
     };
-    barcode_counts.write(writer)?;
-    
+    final_counts.write(writer)?;
+
     if let Some(freq_filename) = config.freq_filename {
-        barcode_counts.write_freq_table(File::create(freq_filename)?)?;
+        final_counts.write_freq_table(File::create(freq_filename)?)?;
     }
 
-    if let Some(nbhd_filename) = config.neighborhood {
-        neighborhood_counts(barcode_counts, &nbhd_filename)?;
-    }
-    
     Ok(())
 }
 
-fn neighborhood_counts(barcode_counts: SampleCounts, nbhd_filename: &str) -> Result<(), failure::Error>
+fn neighborhood_counts(barcode_counts: SampleCounts, nbhd_filename: &str) -> Result<SampleCounts, failure::Error>
 {
     let nbhds_raw = Neighborhood::gather_neighborhoods(barcode_counts.count_map());
     let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
     SortedNeighborhood::write_tables(&nbhd_filename, nbhds.iter())?;
 
-    Ok(())
+    Ok(std::iter::FromIterator::from_iter(nbhds.iter().map(|n| (n.key_barcode().0.to_vec(), n.total()))))
 }
 
 #[cfg(test)]

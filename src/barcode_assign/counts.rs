@@ -172,6 +172,29 @@ impl IntoIterator for SampleCounts {
     }
 }
 
+impl FromIterator<(Vec<u8>, usize)> for SampleCounts {
+    fn from_iter<I>(iter: I) -> SampleCounts
+        where I: IntoIterator<Item = (Vec<u8>, usize)>
+    {
+        let mut barcode_counts = HashMap::new();
+
+        for (bc, ct) in iter {
+            let bccount = barcode_counts.entry(bc).or_insert(0);
+            *bccount += ct
+        }
+
+        SampleCounts(barcode_counts)
+    }
+}
+
+impl <'a> FromIterator<&'a (Vec<u8>, usize)> for SampleCounts {
+    fn from_iter<I>(iter: I) -> SampleCounts
+        where I: IntoIterator<Item = &'a (Vec<u8>, usize)>
+    {
+        Self::from_iter(iter.into_iter().cloned())
+    }
+}
+
 impl <'a> FromIterator<&'a str> for SampleCounts {
     fn from_iter<I>(iter: I) -> SampleCounts
         where I: IntoIterator<Item = &'a str>
