@@ -75,6 +75,13 @@ fn main() {
                 .help("Filename of read fate output file")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("pefastq")
+                .long("fastq")
+                .value_name("OUTBASE.FASTQ")
+                .help("Base filename for paired-end fastq output")
+                .takes_value(true),
+        )
         .get_matches();
 
     let cli = CLI {
@@ -85,6 +92,7 @@ fn main() {
         output_file_inserts: matches.value_of("inserts").map(String::from),
         output_file_fates: matches.value_of("fates").map(String::from),
         output_file_matching: None,
+        output_file_barcoded_fastq: matches.value_of("pefastq").map(String::from),
         output_matching: matches.occurrences_of("matches") > 0,
         max_errors_str: matches.value_of("max_errors").unwrap().to_string(),
     };

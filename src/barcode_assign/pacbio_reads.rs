@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 use bio::alphabets::dna;
 use bio::io::fasta;
-//use bio::io::fastq;
+use bio::io::fastq;
 //use bio::io::fastq::FastqRead;
 use failure;
 use rust_htslib::bam;
@@ -24,6 +24,7 @@ pub struct CLI {
     pub output_file_inserts: Option<String>,
     pub output_file_fates: Option<String>,
     pub output_file_matching: Option<String>,
+    pub output_file_barcoded_fastq: Option<String>,
     pub output_matching: bool,
     pub max_errors_str: String,
 }
@@ -55,6 +56,35 @@ impl CLI {
             || self.output_filename("-read-matching-all.txt"),
             |f| PathBuf::from(f),
         )
+    }
+
+    pub fn output_file_barcoded_fastq_base(&self) -> PathBuf {
+        self.output_file_matching.as_ref().map_or_else(
+            || self.output_filename("-barcoded-frags"),
+            |f| PathBuf::from(f),
+        )
+    }
+
+    pub fn output_file_barcode_fastq(&self) -> PathBuf {
+        let mut base = self.output_file_barcoded_fastq_base();
+        let mut name = base
+            .file_name()
+            .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        name.push("_R1");
+        base.set_file_name(name);
+        base.set_extension("fastq");
+        base
+    }
+
+    pub fn output_file_frag_fastq(&self) -> PathBuf {
+        let mut base = self.output_file_barcoded_fastq_base();
+        let mut name = base
+            .file_name()
+            .map_or(std::ffi::OsString::new(), std::ffi::OsStr::to_os_string);
+        name.push("_R2");
+        base.set_file_name(name);
+        base.set_extension("fastq");
+        base
     }
 
     pub fn output_filename(&self, name: &str) -> PathBuf {
@@ -114,7 +144,16 @@ impl CLI {
         let fasta_writer: Box<dyn Write> =
             Box::new(std::fs::File::create(self.output_file_frags())?);
 
+        let barcode_fastq_writer: Box<dyn Write> =
+            Box::new(std::fs::File::create(self.output_file_barcode_fastq())?);
+        let frag_fastq_writer: Box<dyn Write> =
+            Box::new(std::fs::File::create(self.output_file_frag_fastq())?);
+        
         let frag_out = fasta::Writer::new(fasta_writer);
+
+        let barcode_fastq_out = fastq::Writer::new(barcode_fastq_writer);
+        let frag_fastq_out = fastq::Writer::new(frag_fastq_writer);
+        
         let good_insert_out = std::fs::File::create(self.output_file_inserts())?;
         let fates_out = std::fs::File::create(self.output_file_fates())?;
 
@@ -126,6 +165,8 @@ impl CLI {
 
         Ok(Outputs {
             frags: frag_out,
+            barcode_fastq: barcode_fastq_out,
+            frag_fastq: frag_fastq_out,
             inserts: Box::new(good_insert_out),
             fates: Box::new(fates_out),
             matching: all_match_out,
@@ -148,6 +189,8 @@ impl CLI {
 
 pub struct Outputs {
     frags: fasta::Writer<Box<dyn Write>>,
+    barcode_fastq: fastq::Writer<Box<dyn Write>>,
+    frag_fastq: fastq::Writer<Box<dyn Write>>,
     inserts: Box<dyn Write>,
     fates: Box<dyn Write>,
     matching: Box<dyn Write>,
@@ -156,6 +199,12 @@ pub struct Outputs {
 impl Outputs {
     pub fn frags(&mut self) -> &mut fasta::Writer<Box<dyn Write>> {
         &mut self.frags
+    }
+    pub fn barcode_fastq(&mut self) -> &mut fastq::Writer<Box<dyn Write>> {
+        &mut self.barcode_fastq
+    }
+    pub fn frag_fastq(&mut self) -> &mut fastq::Writer<Box<dyn Write>> {
+        &mut self.frag_fastq
     }
     pub fn inserts(&mut self) -> &mut dyn Write {
         self.inserts.as_mut()
@@ -192,7 +241,12 @@ pub fn pacbio_reads(
         let read_id = String::from_utf8_lossy(extract_read_id(rec.qname()));
 
         let sequ_fwd = rec.seq().as_bytes();
+        let qual_fwd = rec.qual();
+        
         let sequ_rev = dna::revcomp(&sequ_fwd);
+        let mut qual_rev = qual_fwd.to_vec();
+        qual_rev.reverse();
+        
         let lib_matches: Vec<(String, String, LibMatchOut)> = specs
             .iter_mut()
             .flat_map(|ref mut spec| {
@@ -200,12 +254,12 @@ pub fn pacbio_reads(
                     (
                         spec.name().to_string(),
                         "Fwd".to_string(),
-                        spec.best_match(&sequ_fwd),
+                        spec.best_match(&sequ_fwd, &qual_fwd),
                     ),
                     (
                         spec.name().to_string(),
                         "Rev".to_string(),
-                        spec.best_match(&sequ_rev),
+                        spec.best_match(&sequ_rev, &qual_rev),
                     ),
                 ]
             })
@@ -239,10 +293,31 @@ pub fn pacbio_reads(
         } else if good_matches.len() == 1 {
             let (ref name, ref strand, ref lib_match) = good_matches[0];
             write!(outputs.fates(), "{}\t{}\t{}\n", read_id, name, strand)?;
+
             let frag_seq = lib_match.frag_match().insert_seq();
+
             outputs
                 .frags()
                 .write(&format!("{}/0_{}", read_id, frag_seq.len()), None, frag_seq)?;
+
+            let mut barcode_qual = lib_match.barcode_match().insert_qual().to_vec();
+            barcode_qual.iter_mut().for_each(|q| *q += 33);
+            
+            outputs
+                .barcode_fastq()
+                .write(&format!("{}/0_{}", read_id, frag_seq.len()), None,
+                       lib_match.barcode_match().insert_seq(),
+                       &barcode_qual)?;
+
+            let mut frag_qual = lib_match.frag_match().insert_qual().to_vec();
+            frag_qual.iter_mut().for_each(|q| *q += 33);
+            
+            outputs
+                .frag_fastq()
+                .write(&format!("{}/0_{}", read_id, frag_seq.len()), None,
+                       lib_match.frag_match().insert_seq(),
+                       &frag_qual)?;
+
             write!(
                 outputs.inserts(),
                 "{}\t{}\t{}\t{}\n",
