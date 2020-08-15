@@ -5,7 +5,7 @@ authors = ["Nick Ingolia <ingolia@berkeley.edu>"]
 
 [dependencies]
 bio = "0.25"
-rust-htslib = "*"
+rust-htslib = "0.24"
 itertools = "*"
 csv = "*"
 clap = "*"
