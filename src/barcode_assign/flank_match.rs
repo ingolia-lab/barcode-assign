@@ -29,10 +29,10 @@ impl LibSpec {
         &self.name
     }
 
-    pub fn best_match<'a>(&mut self, query: &'a [u8]) -> LibMatchOut<'a> {
+    pub fn best_match<'a>(&mut self, query: &'a [u8], query_qual: &'a [u8]) -> LibMatchOut<'a> {
         LibMatchOut {
-            frag: self.frag_matcher.best_match(query),
-            barcode: self.barcode_matcher.best_match(query),
+            frag: self.frag_matcher.best_match(query, query_qual),
+            barcode: self.barcode_matcher.best_match(query, query_qual),
             barcode_rev: self.barcode_rev,
         }
     }
@@ -123,7 +123,7 @@ impl FlankMatchSpec {
         }
     }
 
-    pub fn best_match<'a>(&mut self, query: &'a [u8]) -> FlankMatchOut<'a> {
+    pub fn best_match<'a>(&mut self, query: &'a [u8], query_qual: &'a [u8]) -> FlankMatchOut<'a> {
         // N.B. end coordinate is not included in match
         let best_before = self
             .before_myers
@@ -140,6 +140,7 @@ impl FlankMatchSpec {
             before: best_before,
             after: best_after,
             query: query,
+            query_qual: query_qual,
         }
     }
 }
@@ -151,6 +152,7 @@ pub struct FlankMatchOut<'a> {
     before: Option<(usize, usize, u8)>,
     after: Option<(usize, usize, u8)>,
     query: &'a [u8],
+    query_qual: &'a [u8],
 }
 
 const DESC_LEN: usize = 10;
@@ -166,6 +168,7 @@ impl<'a> FlankMatchOut<'a> {
                         before: before,
                         after: after,
                         query: self.query,
+                        query_qual: self.query_qual,
                     })
                 } else {
                     None
@@ -217,6 +220,7 @@ pub struct FlankMatch<'a> {
     before: (usize, usize, u8),
     after: (usize, usize, u8),
     query: &'a [u8],
+    query_qual: &'a [u8],
 }
 
 impl<'a> FlankMatch<'a> {
@@ -243,6 +247,11 @@ impl<'a> FlankMatch<'a> {
         &self.query[self.before.1..self.after.0]
     }
 
+    /// Returns the insert quality scores.
+    pub fn insert_qual(&self) -> &[u8] {
+        &self.query_qual[self.before.1..self.after.0]
+    }
+    
     /// Returns the query sequence that matched the constant sequence
     /// before the insert.
     pub fn before_seq(&self) -> &[u8] {
