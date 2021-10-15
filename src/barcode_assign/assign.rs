@@ -7,7 +7,7 @@ use rust_htslib::bam::record::{Cigar, CigarString};
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct AssignPos {
     tid: u32,
-    pos: i32,
+    pos: i64,
     is_reverse: bool,
 }
 
@@ -33,7 +33,7 @@ impl AssignPos {
         targets.get(self.tid as usize).unwrap_or(&"???").to_string()
     }
 
-    pub fn pos(&self) -> i32 {
+    pub fn pos(&self) -> i64 {
         self.pos
     }
     pub fn is_reverse(&self) -> bool {
@@ -69,9 +69,9 @@ pub enum ReadAssign {
 impl ReadAssign {
     pub fn new(r: &bam::Record) -> Result<Self, failure::Error> {
         if let Some(assign_pos) = AssignPos::new(r) {
-            let md_aux = r.aux(b"MD").ok_or_else(|| failure::err_msg("No MD tag"))?;
+            let md_aux = r.aux(b"MD").map_err(|_| failure::err_msg("No MD tag"))?;
             let md: Vec<u8> = match md_aux {
-                bam::record::Aux::String(md) => Ok(md.to_vec()),
+                bam::record::Aux::String(md) => Ok(md.as_bytes().to_vec()),
                 _ => Err(failure::err_msg("MD tag not a string")),
             }?;
 
@@ -152,7 +152,7 @@ impl AssignMatch {
         self.assign_pos.target(targets)
     }
 
-    pub fn pos(&self) -> i32 {
+    pub fn pos(&self) -> i64 {
         self.assign_pos.pos()
     }
     pub fn is_reverse(&self) -> bool {

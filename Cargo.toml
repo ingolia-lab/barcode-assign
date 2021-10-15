@@ -4,8 +4,8 @@ version = "1.0.0"
 authors = ["Nick Ingolia <ingolia@berkeley.edu>"]
 
 [dependencies]
-bio = "0.25"
-rust-htslib = "0.24"
+bio = "*"
+rust-htslib = "*"
 itertools = "*"
 csv = "*"
 clap = "*"

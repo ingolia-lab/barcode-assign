@@ -233,9 +233,9 @@ pub fn pacbio_reads(
 
     loop {
         match bam_in.read(&mut rec) {
-            Ok(()) => (),
-            Err(bam::ReadError::NoMoreRecord) => return Ok(()),
-            Err(e) => bail!(e),
+            Some(Ok(())) => (),
+            Some(Err(e)) => bail!(e),
+            None => return Ok(())
         }
 
         let read_id = String::from_utf8_lossy(extract_read_id(rec.qname()));

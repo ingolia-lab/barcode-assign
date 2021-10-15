@@ -3,7 +3,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 use rust_htslib::bam;
-use rust_htslib::prelude::*;
+use rust_htslib::bam::Read;
 
 #[derive(Debug)]
 pub struct CLI {
@@ -255,7 +255,7 @@ pub fn pacbio_join<R: std::io::Read>(
                 "{}\t{}\t{}\t{}_{}\t{}\t{}\n",
                 target_names[frag.tid() as usize],
                 frag.pos(),
-                frag.cigar().end_pos()?,
+                frag.cigar().end_pos(),
                 barcode,
                 library,
                 reads.len(),
@@ -272,7 +272,7 @@ fn format_align(names: &Vec<String>, r: &bam::Record) -> Result<String, failure:
         "{}\t{}\t{}\t{}",
         names[r.tid() as usize],
         r.pos(),
-        r.cigar().end_pos()?,
+        r.cigar().end_pos(),
         if r.is_reverse() { "-" } else { "+" }
     ))
 }
@@ -282,17 +282,17 @@ fn terse_align(names: &Vec<String>, r: &bam::Record) -> Result<String, failure::
         "{}:{}-{}({})",
         names[r.tid() as usize],
         r.pos(),
-        r.cigar().end_pos()?,
+        r.cigar().end_pos(),
         if r.is_reverse() { "-" } else { "+" }
     ))
 }
 
-fn align_sort_key(r: &bam::Record) -> (i32, i32) {
+fn align_sort_key(r: &bam::Record) -> (i32, i64) {
     (r.tid(), r.pos())
 }
 
 const FRAC_TOL: f64 = 0.76;
-const POS_TOL: i32 = 12;
+const POS_TOL: i64 = 12;
 
 fn is_ambiguous(aligns: &Vec<&Vec<bam::Record>>) -> bool {
     fn align_equivalent(r0: &bam::Record, r1: &bam::Record) -> bool {
