@@ -251,7 +251,7 @@ impl<'a> FlankMatch<'a> {
     pub fn insert_qual(&self) -> &[u8] {
         &self.query_qual[self.before.1..self.after.0]
     }
-    
+
     /// Returns the query sequence that matched the constant sequence
     /// before the insert.
     pub fn before_seq(&self) -> &[u8] {
@@ -401,5 +401,4 @@ mod tests {
         query.extend_from_slice(downstream);
         query
     }
-
 }

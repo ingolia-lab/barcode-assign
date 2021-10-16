@@ -85,22 +85,22 @@ impl CLI {
 
 #[cfg(test)]
 mod tests {
-    extern crate tempfile;
     extern crate rand;
+    extern crate tempfile;
 
-    use std::collections::HashSet;
-    use std::fmt::Write;
-    use std::ops::Deref;
     use bc_tabulate::tests::rand::distributions::Range;
     use bc_tabulate::tests::rand::distributions::Sample;
     use bc_tabulate::tests::rand::thread_rng;
     use bc_tabulate::tests::rand::Rng;
-    
+    use std::collections::HashSet;
+    use std::fmt::Write;
+    use std::ops::Deref;
+
     use super::*;
 
     const NTS_LEN: usize = 4;
     static NTS: [u8; NTS_LEN] = [b'A', b'C', b'G', b'T'];
-    
+
     fn barcode(l: usize) -> Vec<u8> {
         let mut bc = Vec::with_capacity(l);
         for _i in 0..l {
@@ -110,7 +110,7 @@ mod tests {
     }
 
     const BC_LEN: usize = 20;
-    
+
     fn distinct_barcodes(n: usize) -> Vec<Vec<u8>> {
         let mut bcset = HashSet::new();
         while bcset.len() < n {
@@ -119,7 +119,9 @@ mod tests {
         bcset.into_iter().collect()
     }
 
-    fn barcode_counts<B: Deref<Target=[u8]>, I: IntoIterator<Item = B>>(barcodes: I) -> Vec<(Vec<u8>, usize)> {
+    fn barcode_counts<B: Deref<Target = [u8]>, I: IntoIterator<Item = B>>(
+        barcodes: I,
+    ) -> Vec<(Vec<u8>, usize)> {
         let mut bc_ct = Vec::new();
         let mut ctdist = Range::new(1, 1234);
         for bc in barcodes {
@@ -128,10 +130,15 @@ mod tests {
         bc_ct
     }
 
-    fn counts_to_sample<'a, I: IntoIterator<Item = &'a (Vec<u8>, usize)>>(bc_cts: I) -> SampleCounts {
-        bc_cts.into_iter().flat_map(|(bc, ct)| std::iter::repeat(bc.as_slice()).take(*ct)).collect()
+    fn counts_to_sample<'a, I: IntoIterator<Item = &'a (Vec<u8>, usize)>>(
+        bc_cts: I,
+    ) -> SampleCounts {
+        bc_cts
+            .into_iter()
+            .flat_map(|(bc, ct)| std::iter::repeat(bc.as_slice()).take(*ct))
+            .collect()
     }
-    
+
     #[test]
     fn tabulate_one() {
         let mut ctvec_a = barcode_counts(distinct_barcodes(200));
@@ -142,17 +149,18 @@ mod tests {
         let count_path = count_file.into_temp_path();
 
         let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
-        
-        let cli = CLI { inputs: vec![ count_path.to_string_lossy().into_owned() ],
-                        output: table_path.to_string_lossy().into_owned(),
-                        mintotal: None,
-                        minsamples: None,
-                        mininsample: None,
-                        omitfile: None
+
+        let cli = CLI {
+            inputs: vec![count_path.to_string_lossy().into_owned()],
+            output: table_path.to_string_lossy().into_owned(),
+            mintotal: None,
+            minsamples: None,
+            mininsample: None,
+            omitfile: None,
         };
 
         cli.run().unwrap();
-        
+
         let mut exp_table = String::new();
         writeln!(exp_table, "barcode\t{}", count_path.to_string_lossy()).unwrap();
         ctvec_a.sort_by_key(|(_bc, ct)| -(*ct as isize));
@@ -161,11 +169,11 @@ mod tests {
         }
         let mut exp_lines: Vec<&str> = exp_table.lines().collect();
         exp_lines.sort();
-        
+
         let out_table = String::from_utf8(std::fs::read(table_path).unwrap()).unwrap();
         let mut out_lines: Vec<&str> = out_table.lines().collect();
         out_lines.sort();
-        
+
         for (exp_line, act_line) in exp_lines.iter().zip(out_lines.iter()) {
             assert_eq!(exp_line, act_line);
         }
@@ -197,22 +205,29 @@ mod tests {
         let count_b_path = count_b_file.into_temp_path();
 
         let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
-        
-        let cli = CLI { inputs: vec![ count_a_path.to_string_lossy().into_owned(),
-                                      count_b_path.to_string_lossy().into_owned(), ],
-                        output: table_path.to_string_lossy().into_owned(),
-                        mintotal: None,
-                        minsamples: None,
-                        mininsample: None,
-                        omitfile: None
+
+        let cli = CLI {
+            inputs: vec![
+                count_a_path.to_string_lossy().into_owned(),
+                count_b_path.to_string_lossy().into_owned(),
+            ],
+            output: table_path.to_string_lossy().into_owned(),
+            mintotal: None,
+            minsamples: None,
+            mininsample: None,
+            omitfile: None,
         };
 
         cli.run().unwrap();
-        
+
         let mut exp_table = String::new();
-        writeln!(exp_table, "barcode\t{}\t{}",
-                 count_a_path.to_string_lossy(),
-                 count_b_path.to_string_lossy()).unwrap();
+        writeln!(
+            exp_table,
+            "barcode\t{}\t{}",
+            count_a_path.to_string_lossy(),
+            count_b_path.to_string_lossy()
+        )
+        .unwrap();
         for (bc, ct) in ctvec_a_only.iter() {
             writeln!(exp_table, "{}\t{}\t0", String::from_utf8_lossy(bc), *ct).unwrap();
         }
@@ -221,17 +236,22 @@ mod tests {
         }
         for ((bca, cta), (bcb, ctb)) in ctvec_a_both.iter().zip(ctvec_b_both.iter()) {
             assert_eq!(bca, bcb);
-            writeln!(exp_table, "{}\t{}\t{}",
-                     String::from_utf8_lossy(bca),
-                     *cta, *ctb).unwrap();
+            writeln!(
+                exp_table,
+                "{}\t{}\t{}",
+                String::from_utf8_lossy(bca),
+                *cta,
+                *ctb
+            )
+            .unwrap();
         }
         let mut exp_lines: Vec<&str> = exp_table.lines().collect();
         exp_lines.sort();
-        
+
         let out_table = String::from_utf8(std::fs::read(table_path).unwrap()).unwrap();
         let mut out_lines: Vec<&str> = out_table.lines().collect();
         out_lines.sort();
-        
+
         for (exp_line, act_line) in exp_lines.iter().zip(out_lines.iter()) {
             assert_eq!(exp_line, act_line);
         }
@@ -243,18 +263,26 @@ mod tests {
         const N_COUNT: usize = 4;
         const P_ZERO: f64 = 0.5;
         let all_barcodes = distinct_barcodes(N_BARCODE);
-        let ctvecs: Vec<Vec<(Vec<u8>, usize)>>
-            = std::iter::repeat_with(||
-                                     barcode_counts(all_barcodes.iter().map(Vec::as_slice))
-                                     .into_iter()
-                                     .map(|(bc, ct)|
-                                          (bc, if thread_rng().next_f64() < P_ZERO { 0 } else { ct }))
-                                     .collect())
-            .take(N_COUNT)
-            .collect();
+        let ctvecs: Vec<Vec<(Vec<u8>, usize)>> = std::iter::repeat_with(|| {
+            barcode_counts(all_barcodes.iter().map(Vec::as_slice))
+                .into_iter()
+                .map(|(bc, ct)| {
+                    (
+                        bc,
+                        if thread_rng().next_f64() < P_ZERO {
+                            0
+                        } else {
+                            ct
+                        },
+                    )
+                })
+                .collect()
+        })
+        .take(N_COUNT)
+        .collect();
 
         let mut count_paths = Vec::new();
-        
+
         for ctvec in ctvecs.iter() {
             let cts: SampleCounts = counts_to_sample(ctvec.iter().filter(|(_bc, ct)| *ct > 0));
             let mut count_file = tempfile::NamedTempFile::new().unwrap();
@@ -264,12 +292,16 @@ mod tests {
 
         let table_path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
 
-        let cli = CLI { inputs: count_paths.iter().map(|p| p.to_string_lossy().into_owned()).collect(),
-                        output: table_path.to_string_lossy().into_owned(),
-                        mintotal: None,
-                        minsamples: None,
-                        mininsample: None,
-                        omitfile: None
+        let cli = CLI {
+            inputs: count_paths
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect(),
+            output: table_path.to_string_lossy().into_owned(),
+            mintotal: None,
+            minsamples: None,
+            mininsample: None,
+            omitfile: None,
         };
 
         cli.run().unwrap();
@@ -293,13 +325,13 @@ mod tests {
         }
         let mut exp_lines: Vec<&str> = exp_table.lines().collect();
         exp_lines.sort();
-        
+
         let out_table = String::from_utf8(std::fs::read(table_path).unwrap()).unwrap();
         let mut out_lines: Vec<&str> = out_table.lines().collect();
         out_lines.sort();
-        
+
         for (exp_line, act_line) in exp_lines.iter().zip(out_lines.iter()) {
             assert_eq!(exp_line, act_line);
         }
-    }        
+    }
 }

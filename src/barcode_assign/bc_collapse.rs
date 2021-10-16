@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 
 use neighborhood::*;
 
@@ -39,18 +39,19 @@ impl CLI {
         Ok(())
     }
 
-    pub fn count_barcodes<R: BufRead>(barcode_reader: &mut R) -> Result<HashMap<Vec<u8>, usize>, failure::Error> {
+    pub fn count_barcodes<R: BufRead>(
+        barcode_reader: &mut R,
+    ) -> Result<HashMap<Vec<u8>, usize>, failure::Error> {
         let mut barcode_counts = HashMap::new();
-        
+
         for line_res in barcode_reader.lines() {
             let line = line_res?;
-            
+
             let barcode = line.into_bytes();
             let barcode_count = barcode_counts.entry(barcode).or_insert(0);
             *barcode_count += 1;
         }
-        
+
         Ok(barcode_counts)
     }
 }
-
