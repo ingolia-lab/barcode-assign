@@ -137,7 +137,7 @@ fn output_writer(
     Ok(bam::Writer::from_path(
         output_filename(outbase, chunk_no)?,
         &chunk_header,
-        bam::Format::Bam
+        bam::Format::Bam,
     )?)
 }
 

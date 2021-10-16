@@ -4,12 +4,16 @@ version = "1.0.0"
 authors = ["Nick Ingolia <ingolia@berkeley.edu>"]
 
 [dependencies]
+anyhow = "*"
 bio = "*"
+bio-types = "*"
 rust-htslib = "*"
 itertools = "*"
 csv = "*"
 clap = "*"
 failure = "*"
+toml = ">= 0.5"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "*"
@@ -53,6 +57,10 @@ path = "src/bc-pacbio/bc_pbr.rs"
 [[bin]]
 name = "bc-pbj"
 path = "src/bc-pacbio/bc_pbj.rs"
+
+[[bin]]
+name = "bc-pbx"
+path = "src/bc-pacbio/bc_pbx.rs"
 
 [[bin]]
 name = "bc-bam-chunk"

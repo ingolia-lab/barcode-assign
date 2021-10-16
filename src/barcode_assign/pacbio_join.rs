@@ -309,8 +309,10 @@ fn is_ambiguous(aligns: &Vec<&Vec<bam::Record>>) -> bool {
                 .all(|(r0, r1)| align_equivalent(r0, r1))
     }
 
-    fn aligns_groups_insert<'a>(mut groups: Vec<(&'a Vec<bam::Record>, usize)>, aligns: &'a Vec<bam::Record>)
-        -> Vec<(&'a Vec<bam::Record>, usize)> {
+    fn aligns_groups_insert<'a>(
+        mut groups: Vec<(&'a Vec<bam::Record>, usize)>,
+        aligns: &'a Vec<bam::Record>,
+    ) -> Vec<(&'a Vec<bam::Record>, usize)> {
         for (group_aligns, group_count) in groups.iter_mut() {
             if aligns_equivalent(group_aligns, aligns) {
                 *group_count += 1;
@@ -321,8 +323,10 @@ fn is_ambiguous(aligns: &Vec<&Vec<bam::Record>>) -> bool {
         groups
     }
 
-    let groups = aligns.iter().fold(Vec::new(), |groups, ref aligns| aligns_groups_insert(groups, aligns));
-    
+    let groups = aligns.iter().fold(Vec::new(), |groups, ref aligns| {
+        aligns_groups_insert(groups, aligns)
+    });
+
     let count_first = groups.first().map_or(0, |(_aligns, count)| *count);
     let count_total: usize = groups.iter().map(|(_aligns, count)| *count).sum();
 

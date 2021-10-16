@@ -42,12 +42,15 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
 
         let mut nbhd_recs = Vec::new();
         let mut nbhd_counts = Vec::new();
-        
+
         for nbhd in nbhds {
             nbhd_counts.push(nbhd.to_counts());
 
             let barcode = nbhd.key_barcode().0.to_vec();
-            let recs = nbhd.into_barcodes().flat_map(|(_, recs)| recs.into_iter()).collect();
+            let recs = nbhd
+                .into_barcodes()
+                .flat_map(|(_, recs)| recs.into_iter())
+                .collect();
 
             nbhd_recs.push((barcode, recs));
         }
@@ -60,12 +63,12 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
         bc_recs.sort_unstable_by(|(bcl, _recsl), (bcr, _recsr)| bcl.cmp(bcr));
         bc_recs
     };
-    
+
     if let Some(barcode_filename) = config.out_barcodes {
         let barcode_writer = File::create(barcode_filename)?;
         write_barcode_table(barcode_writer, bc_recs.iter())?;
     }
-    
+
     if let Some(freq_filename) = config.out_barcode_freqs {
         let freq_writer = File::create(freq_filename)?;
         write_freq_table(freq_writer, bc_recs.iter())?;
@@ -73,15 +76,14 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
 
     for (bc, recs) in bc_recs {
         let barcode = String::from_utf8(bc)?;
-        
+
         for (recidx, rec) in recs.into_iter().enumerate() {
             let name = format!("{}_{}", barcode, recidx + 1);
-            let named_record =
-                fastq::Record::with_attrs(&name, None, rec.seq(), rec.qual());
+            let named_record = fastq::Record::with_attrs(&name, None, rec.seq(), rec.qual());
             fastq_writer.write_record(&named_record)?;
         }
     }
-        
+
     Ok(())
 }
 
@@ -91,7 +93,7 @@ fn write_barcode_table<'i, W, I, A: 'i>(
 ) -> Result<(), failure::Error>
 where
     W: std::io::Write,
-    I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>
+    I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>,
 {
     let mut bcout = std::io::BufWriter::new(barcode_out);
 
@@ -105,13 +107,10 @@ where
     Ok(())
 }
 
-fn write_freq_table<'i, W, I, A: 'i>(
-    freq_out: W,
-    barcode_iter: I,
-) -> Result<(), failure::Error>
+fn write_freq_table<'i, W, I, A: 'i>(freq_out: W, barcode_iter: I) -> Result<(), failure::Error>
 where
     W: std::io::Write,
-    I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>
+    I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>,
 {
     let mut fout = std::io::BufWriter::new(freq_out);
 
@@ -131,4 +130,3 @@ where
 
     Ok(())
 }
-

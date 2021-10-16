@@ -1,8 +1,8 @@
 extern crate bio;
 #[macro_use]
 extern crate clap;
-extern crate rust_htslib;
 extern crate barcode_assign;
+extern crate rust_htslib;
 #[macro_use]
 extern crate failure;
 

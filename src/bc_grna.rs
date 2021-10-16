@@ -78,7 +78,7 @@ fn main() {
         is_reverse: matches.is_present("reverse"),
 
         out_base: PathBuf::from(matches.value_of("outbase").unwrap()),
-        
+
         min_reads: value_t!(matches.value_of("minreads"), usize).unwrap_or_else(|e| e.exit()),
         min_qual: value_t!(matches.value_of("minqual"), u8).unwrap_or_else(|e| e.exit()),
         min_purity: value_t!(matches.value_of("mintargetpurity"), f64).unwrap_or_else(|e| e.exit()),
@@ -90,4 +90,3 @@ fn main() {
         ::std::process::exit(1);
     }
 }
-

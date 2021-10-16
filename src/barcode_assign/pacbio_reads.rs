@@ -148,12 +148,12 @@ impl CLI {
             Box::new(std::fs::File::create(self.output_file_barcode_fastq())?);
         let frag_fastq_writer: Box<dyn Write> =
             Box::new(std::fs::File::create(self.output_file_frag_fastq())?);
-        
+
         let frag_out = fasta::Writer::new(fasta_writer);
 
         let barcode_fastq_out = fastq::Writer::new(barcode_fastq_writer);
         let frag_fastq_out = fastq::Writer::new(frag_fastq_writer);
-        
+
         let good_insert_out = std::fs::File::create(self.output_file_inserts())?;
         let fates_out = std::fs::File::create(self.output_file_fates())?;
 
@@ -235,18 +235,18 @@ pub fn pacbio_reads(
         match bam_in.read(&mut rec) {
             Some(Ok(())) => (),
             Some(Err(e)) => bail!(e),
-            None => return Ok(())
+            None => return Ok(()),
         }
 
         let read_id = String::from_utf8_lossy(extract_read_id(rec.qname()));
 
         let sequ_fwd = rec.seq().as_bytes();
         let qual_fwd = rec.qual();
-        
+
         let sequ_rev = dna::revcomp(&sequ_fwd);
         let mut qual_rev = qual_fwd.to_vec();
         qual_rev.reverse();
-        
+
         let lib_matches: Vec<(String, String, LibMatchOut)> = specs
             .iter_mut()
             .flat_map(|ref mut spec| {
@@ -302,21 +302,23 @@ pub fn pacbio_reads(
 
             let mut barcode_qual = lib_match.barcode_match().insert_qual().to_vec();
             barcode_qual.iter_mut().for_each(|q| *q += 33);
-            
-            outputs
-                .barcode_fastq()
-                .write(&format!("{}/0_{}", read_id, frag_seq.len()), None,
-                       lib_match.barcode_match().insert_seq(),
-                       &barcode_qual)?;
+
+            outputs.barcode_fastq().write(
+                &format!("{}/0_{}", read_id, frag_seq.len()),
+                None,
+                lib_match.barcode_match().insert_seq(),
+                &barcode_qual,
+            )?;
 
             let mut frag_qual = lib_match.frag_match().insert_qual().to_vec();
             frag_qual.iter_mut().for_each(|q| *q += 33);
-            
-            outputs
-                .frag_fastq()
-                .write(&format!("{}/0_{}", read_id, frag_seq.len()), None,
-                       lib_match.frag_match().insert_seq(),
-                       &frag_qual)?;
+
+            outputs.frag_fastq().write(
+                &format!("{}/0_{}", read_id, frag_seq.len()),
+                None,
+                lib_match.frag_match().insert_seq(),
+                &frag_qual,
+            )?;
 
             write!(
                 outputs.inserts(),

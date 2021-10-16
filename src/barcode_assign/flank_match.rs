@@ -181,6 +181,18 @@ impl<'a> FlankMatchOut<'a> {
         }
     }
 
+    /// Returns the start of the insert for a successful match, or
+    /// `None` if the before match failed.
+    pub fn insert_start(&self) -> Option<usize> {
+        self.before.map(|(_start, end, _score)| end)
+    }
+
+    /// Returns the end of the insert for a successful match, or
+    /// `None` if the after match failed.
+    pub fn insert_end(&self) -> Option<usize> {
+        self.after.map(|(start, _end, _score)| start)
+    }
+    
     pub fn before_match_desc(&self) -> String {
         if let Some((_start, end, _score)) = self.before {
             String::from_utf8_lossy(
@@ -251,7 +263,7 @@ impl<'a> FlankMatch<'a> {
     pub fn insert_qual(&self) -> &[u8] {
         &self.query_qual[self.before.1..self.after.0]
     }
-    
+
     /// Returns the query sequence that matched the constant sequence
     /// before the insert.
     pub fn before_seq(&self) -> &[u8] {
@@ -401,5 +413,4 @@ mod tests {
         query.extend_from_slice(downstream);
         query
     }
-
 }
