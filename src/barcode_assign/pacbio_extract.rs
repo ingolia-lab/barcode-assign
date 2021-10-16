@@ -65,6 +65,10 @@ impl ConfigTOML {
         )
     }
 
+    pub fn matching_filename(&self) -> Option<PathBuf> {
+        self.matching.as_ref().map(PathBuf::from)
+    }
+    
     pub fn output_filename(&self, name: &str) -> PathBuf {
         let base_ref: &Path = self.output_base.as_ref();
         let mut namebase = base_ref
@@ -85,6 +89,7 @@ pub struct InsertTOML {
     max_errors: Option<u8>,
     reverse: Option<bool>,
     fastq: Option<String>,
+    no_fastq: Option<bool>
 }
 
 pub struct LibSpec {
@@ -98,7 +103,12 @@ impl LibSpec {
     pub fn new(config: &ConfigTOML) -> Result<Self> {
         let inserts_filename = config.inserts_filename();
         let fates_filename = config.fates_filename();
-
+        
+        let matching_out: Box<dyn Write> = match config.matching_filename() {
+            Some(filename) => Box::new(std::fs::File::create(filename)?),
+            None => Box::new(std::io::sink())
+        };
+        
         let mut insert_specs = Vec::new();
         for insert_config in config.inserts.iter() {
             insert_specs.push(InsertSpec::new(config, insert_config)?);
@@ -106,7 +116,7 @@ impl LibSpec {
 
         Ok(LibSpec {
             fates_out: Box::new(std::fs::File::create(fates_filename)?),
-            matching_out: Box::new(std::io::sink()),
+            matching_out: matching_out,
             inserts_out: Box::new(std::fs::File::create(inserts_filename)?),
             insert_specs: insert_specs,
         })
@@ -147,9 +157,13 @@ impl InsertSpec {
             max_err,
         );
 
-        let fastq_out: Box<dyn Write> = match &insert_config.fastq {
-            Some(filename) => Box::new(std::fs::File::create(filename)?),
-            None => Box::new(std::io::sink()),
+        let fastq_out: Box<dyn Write> = if insert_config.no_fastq.unwrap_or(false) {
+            Box::new(std::io::sink())
+        } else {
+            Box::new(std::fs::File::create(match &insert_config.fastq {
+                Some(filename) => PathBuf::from(filename),
+                None => config.output_filename(&format!("-{}.fq", insert_config.name)),
+            })?)
         };
         let fastq_writer = fastq::Writer::new(fastq_out);
 
@@ -203,16 +217,17 @@ pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()
         ];
 
         for (ref strand, ref match_out) in lib_matches.iter() {
-            write!(spec.matching_out, "{}\t{}", read_id, strand)?;
-            for insert_match_out in match_out.iter() {
+            for (insert_spec, insert_match_out) in spec.insert_specs.iter().zip(match_out.iter()) {
                 write!(
                     spec.matching_out,
-                    "\t{}\t{}",
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    read_id, strand, insert_spec.name,
+                    insert_match_out.insert_start().map_or_else(|| "N/A".to_string(), |b| b.to_string()),
                     insert_match_out.before_match_desc(),
+                    insert_match_out.insert_end().map_or_else(|| "N/A".to_string(), |e| e.to_string()),
                     insert_match_out.after_match_desc()
                 )?;
             }
-            write!(spec.matching_out, "\n")?;
         }
 
         let good_matches: Vec<(ReqStrand, Vec<FlankMatch>)> = lib_matches

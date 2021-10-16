@@ -181,6 +181,18 @@ impl<'a> FlankMatchOut<'a> {
         }
     }
 
+    /// Returns the start of the insert for a successful match, or
+    /// `None` if the before match failed.
+    pub fn insert_start(&self) -> Option<usize> {
+        self.before.map(|(_start, end, _score)| end)
+    }
+
+    /// Returns the end of the insert for a successful match, or
+    /// `None` if the after match failed.
+    pub fn insert_end(&self) -> Option<usize> {
+        self.after.map(|(start, _end, _score)| start)
+    }
+    
     pub fn before_match_desc(&self) -> String {
         if let Some((_start, end, _score)) = self.before {
             String::from_utf8_lossy(
