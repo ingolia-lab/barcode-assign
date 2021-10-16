@@ -63,7 +63,7 @@ fn main() {
 
     match run(&config) {
         Ok(_) => (),
-        Err(e) => panic!(e),
+        Err(e) => panic!("{:?}", e),
     }
 }
 

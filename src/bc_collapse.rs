@@ -39,7 +39,7 @@ fn main() {
 
     match cli.run() {
         Ok(_) => (),
-        Err(e) => panic!(e),
+        Err(e) => panic!("{}", e),
     }
 }
 

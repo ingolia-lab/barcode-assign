@@ -46,6 +46,6 @@ fn main() {
 
     match bc_count(config) {
         Ok(_) => (),
-        Err(e) => panic!(e),
+        Err(e) => panic!("{}", e),
     }
 }

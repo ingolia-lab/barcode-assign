@@ -58,7 +58,7 @@ fn main() {
 
     match bc_bam_chunk(&input, &outbase, &nreads_str, verbose) {
         Ok(_) => (),
-        Err(e) => panic!(e),
+        Err(e) => panic!("{}", e),
     }
 }
 
@@ -137,6 +137,7 @@ fn output_writer(
     Ok(bam::Writer::from_path(
         output_filename(outbase, chunk_no)?,
         &chunk_header,
+        bam::Format::Bam
     )?)
 }
 
