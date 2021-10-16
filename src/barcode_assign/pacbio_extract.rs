@@ -181,7 +181,7 @@ impl InsertSpec {
 pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()> {
     let mut rec = bam::Record::new();
 
-    loop {
+    'bam: loop {
         match bam_in.read(&mut rec) {
             Some(Ok(())) => (),
             Some(Err(e)) => bail!(e),
@@ -230,6 +230,24 @@ pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()
             write!(spec.fates_out, "{}\tNone\n", read_id)?;
         } else if good_matches.len() == 1 {
             let (ref strand, ref lib_match) = good_matches[0];
+
+            for (insert_spec, insert_match) in spec.insert_specs.iter().zip(lib_match.iter()) {
+                let insert_len = insert_match.insert_seq().len();
+                if insert_spec
+                    .min_len
+                    .map_or(false, |min_len| insert_len < min_len)
+                {
+                    write!(spec.fates_out, "{}\t{}-short\n", read_id, insert_spec.name)?;
+                    continue 'bam;
+                } else if insert_spec
+                    .max_len
+                    .map_or(false, |max_len| insert_len > max_len)
+                {
+                    write!(spec.fates_out, "{}\t{}-long\n", read_id, insert_spec.name)?;
+                    continue 'bam;
+                }
+            }
+
             write!(spec.fates_out, "{}\t{}\n", read_id, strand)?;
 
             write!(spec.inserts_out, "{}\t{}", read_id, strand)?;
