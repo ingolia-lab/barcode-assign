@@ -1,6 +1,6 @@
 extern crate bio;
 
-use bio::io::fastq::Record;
+use bio::io::fastq::{Record};
 use std::io;
 use std::io::{Error, ErrorKind};
 
@@ -21,14 +21,14 @@ impl<R: io::Read, S: io::Read> PairRecords<R, S> {
     }
 }
 
-impl<R: io::Read, S: io::Read> Iterator for PairRecords<R, S> {
+impl<R: io::BufRead, S: io::BufRead> Iterator for PairRecords<R, S> {
     type Item = io::Result<(Record, Record)>;
 
     fn next(&mut self) -> Option<io::Result<(Record, Record)>> {
         match (self.r1_records.next(), self.r2_records.next()) {
             (None, None) => None,
-            (Some(Err(e)), _) => Some(Err(e)),
-            (_, Some(Err(e))) => Some(Err(e)),
+            (Some(Err(e)), _) => Some(Err(Error::new(ErrorKind::Other, e))),
+            (_, Some(Err(e))) => Some(Err(Error::new(ErrorKind::Other, e))),
             (None, Some(_)) => Some(Err(Error::new(ErrorKind::Other, "R1 ended before R2"))),
             (Some(_), None) => Some(Err(Error::new(ErrorKind::Other, "R2 ended before R1"))),
             (Some(Ok(r1)), Some(Ok(r2))) => Some(Ok((r1, r2))),

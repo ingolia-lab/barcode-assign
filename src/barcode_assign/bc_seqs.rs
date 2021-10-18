@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 
+use anyhow::Result;
 use bio::io::fastq;
 
 use fastq_pair;
@@ -17,7 +18,7 @@ pub struct Config {
     pub neighborhood: Option<String>,
 }
 
-pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
+pub fn bc_seqs(config: Config) -> Result<()> {
     let barcode_reader = fastq::Reader::from_file(&config.barcode_fastq)?;
     let sequ_reader = fastq::Reader::from_file(&config.sequ_fastq)?;
 
@@ -90,7 +91,7 @@ pub fn bc_seqs(config: Config) -> Result<(), failure::Error> {
 fn write_barcode_table<'i, W, I, A: 'i>(
     barcode_out: W,
     barcode_iter: I,
-) -> Result<(), failure::Error>
+) -> Result<()>
 where
     W: std::io::Write,
     I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>,
@@ -107,7 +108,7 @@ where
     Ok(())
 }
 
-fn write_freq_table<'i, W, I, A: 'i>(freq_out: W, barcode_iter: I) -> Result<(), failure::Error>
+fn write_freq_table<'i, W, I, A: 'i>(freq_out: W, barcode_iter: I) -> Result<()>
 where
     W: std::io::Write,
     I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>,

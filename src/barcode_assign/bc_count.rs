@@ -22,7 +22,7 @@ pub fn bc_count(config: Config) -> Result<(), failure::Error> {
     };
     let barcode_reader = fastq::Reader::new(reader);
 
-    let barcode_counts_res: Result<SampleCounts, std::io::Error> =
+    let barcode_counts_res: Result<SampleCounts, bio::io::fastq::Error> =
         barcode_reader.records().collect();
     let barcode_counts = barcode_counts_res?;
 
