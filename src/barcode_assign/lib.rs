@@ -15,6 +15,7 @@ pub mod bc_frag;
 pub mod bc_grna;
 pub mod bc_seqs;
 pub mod bc_tabulate;
+pub mod bc_umi;
 pub mod counts;
 pub mod depth;
 pub mod fastq_pair;

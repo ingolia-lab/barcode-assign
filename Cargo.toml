@@ -5,7 +5,7 @@ authors = ["Nick Ingolia <ingolia@berkeley.edu>"]
 
 [dependencies]
 anyhow = "*"
-bio = "*"
+bio = ">= 0.38"
 bio-types = "*"
 rust-htslib = "*"
 itertools = "*"
@@ -73,3 +73,7 @@ path = "src/bc_tabulate.rs"
 [[bin]]
 name = "bc-collapse"
 path = "src/bc_collapse.rs"
+
+[[bin]]
+name = "bc-umi"
+path = "src/bc_umi.rs"
