@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 
 use bio::io::fastq;
+//use rayon::prelude::*;
 
 use neighborhood::*;
 
@@ -175,7 +176,7 @@ impl BarcodeUmis {
     
     pub fn write_tables(&self, filebase: &str) -> Result<(), std::io::Error> {
         // UMI deduplication statistics
-        let mut umis_out_file =
+        let umis_out_file =
             std::fs::File::create(SortedNeighborhood::output_filename(filebase, "-umi-dedup.txt"))?;
         let mut umis_out = std::io::BufWriter::new(umis_out_file);
 
