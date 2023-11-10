@@ -43,13 +43,22 @@ fn main() {
                  .value_name("NBHD_BASE")
                  .help("Analyze barcode mutation neighborhoods")
                  .takes_value(true),
-         )
+        )
+        .arg(
+            Arg::with_name("dedup-stats")
+                .short("d")
+                .long("dedup-stats")
+                .value_name("DEDUP_BASE")
+                .help("Deduplication statistics")
+                .takes_value(true),
+        )
         .get_matches();
 
     let config = Config {
         barcode_fastq: matches.value_of("fastq").unwrap().to_string(),
         umi_prefix: matches.value_of("umi").unwrap().to_string(),
         out_barcodes: matches.value_of("output").unwrap().to_string(),
+        dedup_stats: matches.value_of("dedup-stats").map(|s| String::from(s)),
         neighborhood: matches.value_of("neighborhood").map(|s| String::from(s)),
     };
 

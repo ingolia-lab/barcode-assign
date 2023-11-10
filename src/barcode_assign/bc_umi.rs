@@ -11,6 +11,7 @@ pub struct Config {
     pub barcode_fastq: String,
     pub umi_prefix: String,
     pub out_barcodes: String,
+    pub dedup_stats: Option<String>,
     pub neighborhood: Option<String>,
 }
 
@@ -37,6 +38,10 @@ pub fn bc_umi(config: Config) -> Result<(), failure::Error> {
     } else {
         barcode_umis
     };
+
+    if let Some(dedup_base) = config.dedup_stats {
+        final_counts.write_tables(&dedup_base)?;
+    }
     
     let writer: Box<dyn Write> = if config.out_barcodes == "-" {
         Box::new(io::stdout())
@@ -55,8 +60,9 @@ fn neighborhood_counts(
     let nbhds_raw = Neighborhood::gather_neighborhoods(raw_umis.barcode_map());
     let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
-    // ZZZ
-    // SortedNeighborhood::write_tables(&nbhd_filename, nbhds.iter())?;
+    let nbhd_sizes: Vec<_> = nbhds.iter().map(|n| n.with_mapped_values(|u| u.total_counts())).collect::<Vec<SortedNeighborhood<usize>>>();
+    
+    SortedNeighborhood::write_tables(&nbhd_filename, nbhd_sizes.iter())?;
 
     Ok(std::iter::FromIterator::from_iter(nbhds.into_iter().map(|n| UmiCounts::merge(n))))
 }
@@ -161,18 +167,31 @@ impl BarcodeUmis {
         let mut out = std::io::BufWriter::new(umi_out);
 
         for (barcode, umis) in self.0.iter() {
-            write!(out, "{}", String::from_utf8_lossy(barcode))?;
+            write!(out, "{}\t{}\n", String::from_utf8_lossy(barcode), umis.total_umis())?;
+        }
+        
+        Ok(())
+    }
+    
+    pub fn write_tables(&self, filebase: &str) -> Result<(), std::io::Error> {
+        // UMI deduplication statistics
+        let mut umis_out_file =
+            std::fs::File::create(SortedNeighborhood::output_filename(filebase, "-umi-dedup.txt"))?;
+        let mut umis_out = std::io::BufWriter::new(umis_out_file);
+
+        for (barcode, umis) in self.0.iter() {
+            write!(umis_out, "{}", String::from_utf8_lossy(barcode))?;
             let umi_counts = umis.counts();
 
-            write!(out, "\t{}\t{}\t", umis.total_counts(), umis.total_umis())?;
+            write!(umis_out, "\t{}\t{}\t", umis.total_counts(), umis.total_umis())?;
 
-            write!(out, "{}\t",
+            write!(umis_out, "{}\t",
                    umi_counts[umi_counts.len() / 2])?;
             
             for count in umi_counts.iter() {
-                write!(out, "{},", count)?;
+                write!(umis_out, "{},", count)?;
             }
-            write!(out, "\n")?;
+            write!(umis_out, "\n")?;
         }
         
         Ok(())

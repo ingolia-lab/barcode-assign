@@ -126,6 +126,13 @@ impl<T> SortedNeighborhood<T> {
         let (keybc, keyct) = self.barcodes.first().unwrap();
         (keybc, keyct)
     }
+
+    pub fn with_mapped_values<F, U>(&self, func: F) -> SortedNeighborhood<U>
+        where F: Fn(&T) -> U
+    {
+        let mapped = self.barcodes.iter().map(|(bc, t)| (bc.to_vec(), func(t))).collect::<Vec<(Vec<u8>, U)>>();
+        SortedNeighborhood { barcodes: mapped }
+    }
 }
 
 impl<T: OrdEntry> SortedNeighborhood<T> {
@@ -214,7 +221,7 @@ impl SortedNeighborhood<usize> {
         )
     }
 
-    fn output_filename(output_base: &str, name: &str) -> PathBuf {
+    pub fn output_filename(output_base: &str, name: &str) -> PathBuf {
         let base_ref: &Path = output_base.as_ref();
         let mut namebase = base_ref
             .file_name()
