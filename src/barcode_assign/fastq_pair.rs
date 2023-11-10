@@ -1,6 +1,6 @@
 extern crate bio;
 
-use bio::io::fastq::{Record};
+use bio::io::fastq::Record;
 use std::io;
 use std::io::{Error, ErrorKind};
 

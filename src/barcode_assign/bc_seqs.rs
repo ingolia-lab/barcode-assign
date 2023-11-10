@@ -88,10 +88,7 @@ pub fn bc_seqs(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn write_barcode_table<'i, W, I, A: 'i>(
-    barcode_out: W,
-    barcode_iter: I,
-) -> Result<()>
+fn write_barcode_table<'i, W, I, A: 'i>(barcode_out: W, barcode_iter: I) -> Result<()>
 where
     W: std::io::Write,
     I: Iterator<Item = &'i (Vec<u8>, Vec<A>)>,

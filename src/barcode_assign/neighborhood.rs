@@ -128,9 +128,14 @@ impl<T> SortedNeighborhood<T> {
     }
 
     pub fn with_mapped_values<F, U>(&self, func: F) -> SortedNeighborhood<U>
-        where F: Fn(&T) -> U
+    where
+        F: Fn(&T) -> U,
     {
-        let mapped = self.barcodes.iter().map(|(bc, t)| (bc.to_vec(), func(t))).collect::<Vec<(Vec<u8>, U)>>();
+        let mapped = self
+            .barcodes
+            .iter()
+            .map(|(bc, t)| (bc.to_vec(), func(t)))
+            .collect::<Vec<(Vec<u8>, U)>>();
         SortedNeighborhood { barcodes: mapped }
     }
 }

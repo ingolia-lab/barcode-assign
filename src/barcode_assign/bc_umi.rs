@@ -28,7 +28,9 @@ pub fn bc_umi(config: Config) -> Result<(), failure::Error> {
 
     for recres in barcode_reader.records() {
         let rec = recres?;
-        let desc = rec.desc().ok_or_else(|| format_err!("No header for {:?}", rec.id()))?;
+        let desc = rec
+            .desc()
+            .ok_or_else(|| format_err!("No header for {:?}", rec.id()))?;
         let umi = BarcodeUmis::find_umi(&config.umi_prefix, desc)
             .ok_or_else(|| format_err!("No UMI in {:?} for {:?}", desc, rec.id()))?;
         barcode_umis.count_one(rec.seq(), umi.as_bytes());
@@ -43,7 +45,7 @@ pub fn bc_umi(config: Config) -> Result<(), failure::Error> {
     if let Some(dedup_base) = config.dedup_stats {
         final_counts.write_tables(&dedup_base)?;
     }
-    
+
     let writer: Box<dyn Write> = if config.out_barcodes == "-" {
         Box::new(io::stdout())
     } else {
@@ -61,28 +63,34 @@ fn neighborhood_counts(
     let nbhds_raw = Neighborhood::gather_neighborhoods(raw_umis.barcode_map());
     let nbhds: Vec<_> = nbhds_raw.into_iter().map(|n| n.into_sorted()).collect();
 
-    let nbhd_sizes: Vec<_> = nbhds.iter().map(|n| n.with_mapped_values(|u| u.total_counts())).collect::<Vec<SortedNeighborhood<usize>>>();
-    
+    let nbhd_sizes: Vec<_> = nbhds
+        .iter()
+        .map(|n| n.with_mapped_values(|u| u.total_counts()))
+        .collect::<Vec<SortedNeighborhood<usize>>>();
+
     SortedNeighborhood::write_tables(&nbhd_filename, nbhd_sizes.iter())?;
 
-    Ok(std::iter::FromIterator::from_iter(nbhds.into_iter().map(|n| UmiCounts::merge(n))))
+    Ok(std::iter::FromIterator::from_iter(
+        nbhds.into_iter().map(|n| UmiCounts::merge(n)),
+    ))
 }
-
 
 #[derive(Debug, Clone)]
 pub struct UmiCounts {
     total: usize,
-    umi_counts: HashMap<Vec<u8>, usize>
+    umi_counts: HashMap<Vec<u8>, usize>,
 }
 
 impl UmiCounts {
     pub fn new() -> Self {
-        UmiCounts { total: 0, umi_counts: HashMap::new() }
+        UmiCounts {
+            total: 0,
+            umi_counts: HashMap::new(),
+        }
     }
-    
+
     pub fn count_one(&mut self, umi: &[u8]) -> () {
         self.count_add(umi, 1)
-            
     }
 
     pub fn count_add(&mut self, umi: &[u8], count: usize) -> () {
@@ -97,11 +105,19 @@ impl UmiCounts {
         self.total += count;
     }
 
-    pub fn total_counts(&self) -> usize { self.total }
-    pub fn total_umis(&self) -> usize { self.umi_counts.len() }
+    pub fn total_counts(&self) -> usize {
+        self.total
+    }
+    pub fn total_umis(&self) -> usize {
+        self.umi_counts.len()
+    }
 
     pub fn counts(&self) -> Vec<usize> {
-        let mut cts = self.umi_counts.iter().map(|uc| *uc.1).collect::<Vec<usize>>();
+        let mut cts = self
+            .umi_counts
+            .iter()
+            .map(|uc| *uc.1)
+            .collect::<Vec<usize>>();
         cts.sort();
         cts.reverse();
         cts
@@ -114,8 +130,8 @@ impl UmiCounts {
         for (_, more_counts) in barcode_umi_iter {
             umi_counts += more_counts;
         }
-        
-        (key, umi_counts)        
+
+        (key, umi_counts)
     }
 }
 
@@ -133,22 +149,20 @@ impl OrdEntry for UmiCounts {
     }
 }
 
- /// Tabulation of barcode counts in a sample
+/// Tabulation of barcode counts in a sample
 #[derive(Debug, Clone)]
 pub struct BarcodeUmis(HashMap<Vec<u8>, UmiCounts>);
 
 impl BarcodeUmis {
-    pub fn new() -> Self
-    {
+    pub fn new() -> Self {
         BarcodeUmis(HashMap::new())
     }
 
     pub fn barcode_map(self) -> HashMap<Vec<u8>, UmiCounts> {
         self.0
     }
-    
-    pub fn count_one(&mut self, barcode: &[u8], umi: &[u8]) -> ()
-    {
+
+    pub fn count_one(&mut self, barcode: &[u8], umi: &[u8]) -> () {
         let barcode_umis = if let Some(existing) = self.0.get_mut(barcode) {
             existing
         } else {
@@ -168,40 +182,52 @@ impl BarcodeUmis {
         let mut out = std::io::BufWriter::new(umi_out);
 
         for (barcode, umis) in self.0.iter() {
-            write!(out, "{}\t{}\n", String::from_utf8_lossy(barcode), umis.total_umis())?;
+            write!(
+                out,
+                "{}\t{}\n",
+                String::from_utf8_lossy(barcode),
+                umis.total_umis()
+            )?;
         }
-        
+
         Ok(())
     }
-    
+
     pub fn write_tables(&self, filebase: &str) -> Result<(), std::io::Error> {
         // UMI deduplication statistics
-        let umis_out_file =
-            std::fs::File::create(SortedNeighborhood::output_filename(filebase, "-umi-dedup.txt"))?;
+        let umis_out_file = std::fs::File::create(SortedNeighborhood::output_filename(
+            filebase,
+            "-umi-dedup.txt",
+        ))?;
         let mut umis_out = std::io::BufWriter::new(umis_out_file);
 
         for (barcode, umis) in self.0.iter() {
             write!(umis_out, "{}", String::from_utf8_lossy(barcode))?;
             let umi_counts = umis.counts();
 
-            write!(umis_out, "\t{}\t{}\t", umis.total_counts(), umis.total_umis())?;
+            write!(
+                umis_out,
+                "\t{}\t{}\t",
+                umis.total_counts(),
+                umis.total_umis()
+            )?;
 
-            write!(umis_out, "{}\t",
-                   umi_counts[umi_counts.len() / 2])?;
-            
+            write!(umis_out, "{}\t", umi_counts[umi_counts.len() / 2])?;
+
             for count in umi_counts.iter() {
                 write!(umis_out, "{},", count)?;
             }
             write!(umis_out, "\n")?;
         }
-        
+
         Ok(())
     }
 }
 
 impl std::iter::FromIterator<(Vec<u8>, UmiCounts)> for BarcodeUmis {
     fn from_iter<I>(iter: I) -> Self
-        where I: IntoIterator<Item = (Vec<u8>, UmiCounts)>
+    where
+        I: IntoIterator<Item = (Vec<u8>, UmiCounts)>,
     {
         BarcodeUmis(HashMap::from_iter(iter))
     }

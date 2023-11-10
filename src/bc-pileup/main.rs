@@ -288,7 +288,8 @@ fn median_qual(r: &bam::Record) -> u8 {
 }
 
 fn read_reference(ref_fa: &Path) -> Result<fasta::Record, failure::Error> {
-    let mut reader = fasta::Reader::from_file(ref_fa).map_err(|e| format_err!("Reading Fasta reference: {:?}", e))?;
+    let mut reader = fasta::Reader::from_file(ref_fa)
+        .map_err(|e| format_err!("Reading Fasta reference: {:?}", e))?;
     let mut rec = fasta::Record::new();
     reader.read(&mut rec)?;
     Ok(rec)

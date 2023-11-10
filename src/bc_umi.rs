@@ -38,11 +38,11 @@ fn main() {
         )
         .arg(
             Arg::with_name("neighborhood")
-                 .short("n")
-                 .long("neighborhood")
-                 .value_name("NBHD_BASE")
-                 .help("Analyze barcode mutation neighborhoods")
-                 .takes_value(true),
+                .short("n")
+                .long("neighborhood")
+                .value_name("NBHD_BASE")
+                .help("Analyze barcode mutation neighborhoods")
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("dedup-stats")

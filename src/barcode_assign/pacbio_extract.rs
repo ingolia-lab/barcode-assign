@@ -68,7 +68,7 @@ impl ConfigTOML {
     pub fn matching_filename(&self) -> Option<PathBuf> {
         self.matching.as_ref().map(PathBuf::from)
     }
-    
+
     pub fn output_filename(&self, name: &str) -> PathBuf {
         let base_ref: &Path = self.output_base.as_ref();
         let mut namebase = base_ref
@@ -89,7 +89,7 @@ pub struct InsertTOML {
     max_errors: Option<u8>,
     reverse: Option<bool>,
     fastq: Option<String>,
-    no_fastq: Option<bool>
+    no_fastq: Option<bool>,
 }
 
 pub struct LibSpec {
@@ -103,12 +103,12 @@ impl LibSpec {
     pub fn new(config: &ConfigTOML) -> Result<Self> {
         let inserts_filename = config.inserts_filename();
         let fates_filename = config.fates_filename();
-        
+
         let matching_out: Box<dyn Write> = match config.matching_filename() {
             Some(filename) => Box::new(std::fs::File::create(filename)?),
-            None => Box::new(std::io::sink())
+            None => Box::new(std::io::sink()),
         };
-        
+
         let mut insert_specs = Vec::new();
         for insert_config in config.inserts.iter() {
             insert_specs.push(InsertSpec::new(config, insert_config)?);
@@ -221,10 +221,16 @@ pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()
                 write!(
                     spec.matching_out,
                     "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                    read_id, strand, insert_spec.name,
-                    insert_match_out.insert_start().map_or_else(|| "N/A".to_string(), |b| b.to_string()),
+                    read_id,
+                    strand,
+                    insert_spec.name,
+                    insert_match_out
+                        .insert_start()
+                        .map_or_else(|| "N/A".to_string(), |b| b.to_string()),
                     insert_match_out.before_match_desc(),
-                    insert_match_out.insert_end().map_or_else(|| "N/A".to_string(), |e| e.to_string()),
+                    insert_match_out
+                        .insert_end()
+                        .map_or_else(|| "N/A".to_string(), |e| e.to_string()),
                     insert_match_out.after_match_desc()
                 )?;
             }
