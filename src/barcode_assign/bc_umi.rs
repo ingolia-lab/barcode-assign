@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Read, Write};
 
+use anyhow::{anyhow, Context, Result};
 use bio::io::fastq;
 //use rayon::prelude::*;
 
@@ -16,42 +17,48 @@ pub struct Config {
     pub neighborhood: Option<String>,
 }
 
-pub fn bc_umi(config: Config) -> Result<(), failure::Error> {
+pub fn bc_umi(config: Config) -> Result<()> {
     let reader: Box<dyn Read> = if config.barcode_fastq == "-" {
         Box::new(io::stdin())
     } else {
-        Box::new(File::open(&config.barcode_fastq)?)
+        let file = File::open(&config.barcode_fastq)
+            .with_context(|| format!("Could not open barcode FastQ file {:?}", config.barcode_fastq))?;
+        Box::new(file)
     };
     let barcode_reader = fastq::Reader::new(reader);
 
     let mut barcode_umis = BarcodeUmis::new();
 
     for recres in barcode_reader.records() {
-        let rec = recres?;
+        let rec = recres
+            .with_context(|| format!("Bad FastQ record"))?;
         let desc = rec
             .desc()
-            .ok_or_else(|| format_err!("No header for {:?}", rec.id()))?;
+            .ok_or_else(|| anyhow!("No header information for FastQ record {:?}", rec.id()))?;
         let umi = BarcodeUmis::find_umi(&config.umi_prefix, desc)
-            .ok_or_else(|| format_err!("No UMI in {:?} for {:?}", desc, rec.id()))?;
+            .ok_or_else(|| anyhow!("No UMI in {:?} for FastQ record{:?}", desc, rec.id()))?;
         barcode_umis.count_one(rec.seq(), umi.as_bytes());
     }
 
-    let final_counts = if let Some(nbhd_filename) = config.neighborhood {
-        neighborhood_counts(barcode_umis, &nbhd_filename)?
+    let final_counts = if let Some(ref nbhd_filename) = config.neighborhood {
+        neighborhood_counts(barcode_umis, &nbhd_filename).map_err(|e| anyhow!(e))?
     } else {
         barcode_umis
     };
 
-    if let Some(dedup_base) = config.dedup_stats {
+    if let Some(ref dedup_base) = config.dedup_stats {
         final_counts.write_tables(&dedup_base)?;
     }
 
     let writer: Box<dyn Write> = if config.out_barcodes == "-" {
         Box::new(io::stdout())
     } else {
-        Box::new(File::create(&config.out_barcodes)?)
+        let file = File::create(&config.out_barcodes)
+            .with_context(|| format!("Could not create counts output file {:?}", config.out_barcodes))?;
+        Box::new(file)
     };
-    final_counts.write(writer)?;
+    final_counts.write(writer)
+        .with_context(|| "Error while writing counts output file")?;
 
     Ok(())
 }
@@ -178,7 +185,7 @@ impl BarcodeUmis {
         rest.split_whitespace().next()
     }
 
-    pub fn write<W: Write>(&self, umi_out: W) -> Result<(), failure::Error> {
+    pub fn write<W: Write>(&self, umi_out: W) -> Result<()> {
         let mut out = std::io::BufWriter::new(umi_out);
 
         for (barcode, umis) in self.0.iter() {
@@ -193,12 +200,13 @@ impl BarcodeUmis {
         Ok(())
     }
 
-    pub fn write_tables(&self, filebase: &str) -> Result<(), std::io::Error> {
+    pub fn write_tables(&self, filebase: &str) -> Result<()> {
         // UMI deduplication statistics
-        let umis_out_file = std::fs::File::create(SortedNeighborhood::output_filename(
-            filebase,
-            "-umi-dedup.txt",
-        ))?;
+        let umis_out_filename = SortedNeighborhood::output_filename(
+            filebase, "-umi-dedup.txt");
+        let umis_out_file = std::fs::File::create(umis_out_filename)
+            .with_context(|| "Error creating UMI deduplication statistics file {:?}")?;
+        
         let mut umis_out = std::io::BufWriter::new(umis_out_file);
 
         for (barcode, umis) in self.0.iter() {

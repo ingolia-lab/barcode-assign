@@ -64,6 +64,8 @@ fn main() {
 
     match bc_umi(config) {
         Ok(_) => (),
-        Err(e) => panic!("{}", e),
+        Err(e) => {
+            eprint!("bc_umi: failed due to error:\n{:#}\n", e);
+        }
     }
 }
