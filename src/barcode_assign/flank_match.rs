@@ -103,6 +103,56 @@ impl<'a> LibMatch<'a> {
     }
 }
 
+pub struct TrimMatchSpec {
+    left_myers: Option<Myers<u64>>,
+    right_myers: Option<Myers<u64>>,
+    #[allow(dead_code)]
+    left: Option<Vec<u8>>,
+    #[allow(dead_code)]
+    right: Option<Vec<u8>>,
+    max_errors: u8,
+}
+
+impl TrimMatchSpec {
+    pub fn new(left: &Option<Vec<u8>>, right: &Option<Vec<u8>>, max_errors: u8) -> Self {
+        TrimMatchSpec {
+            left_myers: left.as_ref().map(|l| Myers::<u64>::new(l)),
+            right_myers: right.as_ref().map(|r| Myers::<u64>::new(r)),
+            left: left.as_ref().map(std::clone::Clone::clone),
+            right: right.as_ref().map(std::clone::Clone::clone),
+            max_errors: max_errors,
+        }
+    }
+
+    pub fn trim<'a>(&mut self, insert: &'a [u8]) -> (usize, &'a [u8]) {
+        let left_edge = if let Some(myers) = self.left_myers.as_mut() {
+            myers
+                .find_all(insert, self.max_errors)
+                .by_ref()
+                .min_by_key(|&(start, _, score)| (score, start))
+                .map_or(0, |(_, end, _)| end)
+        } else {
+            0
+        };
+
+        let right_edge = if let Some(myers) = self.right_myers.as_mut() {
+            myers
+                .find_all(insert, self.max_errors)
+                .by_ref()
+                .min_by_key(|&(start, _, score)| (score, start))
+                .map_or(insert.len(), |(start, _, _)| start)
+        } else {
+            insert.len()
+        };
+
+        if left_edge < right_edge {
+            (left_edge, &insert[left_edge..right_edge])
+        } else {
+            (0, &insert)
+        }
+    }
+}
+
 pub struct FlankMatchSpec {
     before_myers: Myers<u64>,
     after_myers: Myers<u64>,

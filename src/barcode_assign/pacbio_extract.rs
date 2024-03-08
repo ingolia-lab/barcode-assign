@@ -84,6 +84,8 @@ pub struct InsertTOML {
     name: String,
     before: String,
     after: String,
+    left_trim: Option<String>,
+    right_trim: Option<String>,
     min_len: Option<usize>,
     max_len: Option<usize>,
     max_errors: Option<u8>,
@@ -138,6 +140,7 @@ impl LibSpec {
 pub struct InsertSpec {
     name: String,
     match_spec: FlankMatchSpec,
+    trim_spec: TrimMatchSpec,
     min_len: Option<usize>,
     max_len: Option<usize>,
     reverse: bool,
@@ -157,6 +160,19 @@ impl InsertSpec {
             max_err,
         );
 
+        let left_trim_seq = insert_config
+            .left_trim
+            .as_ref()
+            .map(|s| Self::make_seq(s))
+            .transpose()?;
+        let right_trim_seq = insert_config
+            .right_trim
+            .as_ref()
+            .map(|s| Self::make_seq(s))
+            .transpose()?;
+
+        let trimmer = TrimMatchSpec::new(&left_trim_seq, &right_trim_seq, max_err);
+
         let fastq_out: Box<dyn Write> = if insert_config.no_fastq.unwrap_or(false) {
             Box::new(std::io::sink())
         } else {
@@ -170,6 +186,7 @@ impl InsertSpec {
         Ok(InsertSpec {
             name: insert_config.name.clone(),
             match_spec: matcher,
+            trim_spec: trimmer,
             min_len: insert_config.min_len,
             max_len: insert_config.max_len,
             reverse: insert_config.reverse.unwrap_or(false),
@@ -295,11 +312,13 @@ pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()
                     &insert_qual,
                 )?;
 
+                let (trimmed_start, trimmed_seq) = insert_spec.trim_spec.trim(&insert_seq);
+
                 write!(
                     spec.inserts_out,
                     "\t{}\t{}",
-                    insert_match.insert_start(),
-                    String::from_utf8_lossy(&insert_seq)
+                    insert_match.insert_start() + trimmed_start,
+                    String::from_utf8_lossy(&trimmed_seq)
                 )?;
             }
 
