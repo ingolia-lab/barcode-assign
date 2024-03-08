@@ -176,33 +176,54 @@ impl<'a> FlankMatchOut<'a> {
     }
 
     pub fn before_match_desc(&self) -> String {
-        if let Some(&(_start, end, _score)) = self.before.first() {
-            String::from_utf8_lossy(
-                &self.query[max(DESC_LEN, end) - DESC_LEN..end].to_ascii_uppercase(),
-            )
-            .to_string()
-                + &String::from_utf8_lossy(
-                    &self.query[end..min(end + DESC_LEN, self.query.len())].to_ascii_lowercase(),
+        let descs = self
+            .before
+            .iter()
+            .map(|&(_start, end, score)| {
+                format!(
+                    "{},{},{}{}",
+                    end,
+                    score,
+                    String::from_utf8_lossy(
+                        &self.query[max(DESC_LEN, end) - DESC_LEN..end].to_ascii_uppercase(),
+                    ),
+                    String::from_utf8_lossy(
+                        &self.query[end..min(end + DESC_LEN, self.query.len())]
+                            .to_ascii_lowercase(),
+                    )
                 )
-                .to_string()
-        } else {
+            })
+            .collect::<Vec<_>>();
+        if descs.is_empty() {
             "N/A".to_string()
+        } else {
+            descs.join(";")
         }
     }
 
     pub fn after_match_desc(&self) -> String {
-        if let Some(&(start, _end, _score)) = self.after.first() {
-            String::from_utf8_lossy(
-                &self.query[max(DESC_LEN, start) - DESC_LEN..start].to_ascii_lowercase(),
-            )
-            .to_string()
-                + &String::from_utf8_lossy(
-                    &self.query[start..min(start + DESC_LEN, self.query.len())]
-                        .to_ascii_uppercase(),
+        let descs = self
+            .after
+            .iter()
+            .map(|&(start, _end, score)| {
+                format!(
+                    "{},{},{}{}",
+                    start,
+                    score,
+                    String::from_utf8_lossy(
+                        &self.query[max(DESC_LEN, start) - DESC_LEN..start].to_ascii_lowercase(),
+                    ),
+                    String::from_utf8_lossy(
+                        &self.query[start..min(start + DESC_LEN, self.query.len())]
+                            .to_ascii_uppercase(),
+                    )
                 )
-                .to_string()
-        } else {
+            })
+            .collect::<Vec<_>>();
+        if descs.is_empty() {
             "N/A".to_string()
+        } else {
+            descs.join(";")
         }
     }
 }
