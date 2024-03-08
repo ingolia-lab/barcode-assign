@@ -175,6 +175,14 @@ impl<'a> FlankMatchOut<'a> {
         })
     }
 
+    pub fn insert_desc(&self) -> String {
+        if let Some(fm) = self.flank_match() {
+            format!("{}-{}@{}", fm.insert_start(), fm.insert_end(), fm.score())
+        } else {
+            "N/A".to_string()
+        }
+    }
+
     pub fn before_match_desc(&self) -> String {
         let descs = self
             .before
