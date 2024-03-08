@@ -2,6 +2,7 @@ use std::cmp::*;
 
 use bio::alphabets::dna;
 use bio::pattern_matching::myers::Myers;
+// use rust_htslib::htslib::__siginfo;
 
 pub struct LibSpec {
     name: String,
@@ -125,32 +126,30 @@ impl FlankMatchSpec {
 
     pub fn best_match<'a>(&mut self, query: &'a [u8], query_qual: &'a [u8]) -> FlankMatchOut<'a> {
         // N.B. end coordinate is not included in match
-        let best_before = self
+        let before_matches = self
             .before_myers
             .find_all(query, self.max_errors)
-            .by_ref()
-            .min_by_key(|&(_, _, dist)| dist);
-        let best_after = self
+            .collect::<Vec<(usize, usize, u8)>>();
+        let after_matches = self
             .after_myers
             .find_all(query, self.max_errors)
-            .by_ref()
-            .min_by_key(|&(_, _, dist)| dist);
+            .collect::<Vec<(usize, usize, u8)>>();
 
         FlankMatchOut {
-            before: best_before,
-            after: best_after,
+            before: before_matches,
+            after: after_matches,
             query: query,
             query_qual: query_qual,
         }
     }
 }
 
-/// Attempted alignment between flanking constant sequences and a
+/// All possible alignments between flanking constant sequences and a
 /// target query. Either of the flanking sequence matches may fail.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FlankMatchOut<'a> {
-    before: Option<(usize, usize, u8)>,
-    after: Option<(usize, usize, u8)>,
+    before: Vec<(usize, usize, u8)>,
+    after: Vec<(usize, usize, u8)>,
     query: &'a [u8],
     query_qual: &'a [u8],
 }
@@ -161,40 +160,23 @@ impl<'a> FlankMatchOut<'a> {
     /// Returns the successful match, or `None` if either the before
     /// or after match failed.
     pub fn flank_match(&self) -> Option<FlankMatch<'a>> {
-        if let Some(before) = self.before {
-            if let Some(after) = self.after {
-                if before.1 <= after.0 {
-                    Some(FlankMatch {
-                        before: before,
-                        after: after,
-                        query: self.query,
-                        query_qual: self.query_qual,
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Returns the start of the insert for a successful match, or
-    /// `None` if the before match failed.
-    pub fn insert_start(&self) -> Option<usize> {
-        self.before.map(|(_start, end, _score)| end)
-    }
-
-    /// Returns the end of the insert for a successful match, or
-    /// `None` if the after match failed.
-    pub fn insert_end(&self) -> Option<usize> {
-        self.after.map(|(start, _end, _score)| start)
+        let (b, a) = self
+            .before
+            .iter()
+            .flat_map(move |b| {
+                std::iter::repeat(b).zip(self.after.iter().filter(move |a| b.1 <= a.0))
+            })
+            .min_by_key(|(b, a)| (a.2 + b.2, a.0 - b.1))?;
+        Some(FlankMatch {
+            before: b.clone(),
+            after: a.clone(),
+            query: self.query,
+            query_qual: self.query_qual,
+        })
     }
 
     pub fn before_match_desc(&self) -> String {
-        if let Some((_start, end, _score)) = self.before {
+        if let Some(&(_start, end, _score)) = self.before.first() {
             String::from_utf8_lossy(
                 &self.query[max(DESC_LEN, end) - DESC_LEN..end].to_ascii_uppercase(),
             )
@@ -209,7 +191,7 @@ impl<'a> FlankMatchOut<'a> {
     }
 
     pub fn after_match_desc(&self) -> String {
-        if let Some((start, _end, _score)) = self.after {
+        if let Some(&(start, _end, _score)) = self.after.first() {
             String::from_utf8_lossy(
                 &self.query[max(DESC_LEN, start) - DESC_LEN..start].to_ascii_lowercase(),
             )

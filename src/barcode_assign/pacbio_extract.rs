@@ -220,17 +220,11 @@ pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()
             for (insert_spec, insert_match_out) in spec.insert_specs.iter().zip(match_out.iter()) {
                 write!(
                     spec.matching_out,
-                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    "{}\t{}\t{}\t{}\t{}\n",
                     read_id,
                     strand,
                     insert_spec.name,
-                    insert_match_out
-                        .insert_start()
-                        .map_or_else(|| "N/A".to_string(), |b| b.to_string()),
                     insert_match_out.before_match_desc(),
-                    insert_match_out
-                        .insert_end()
-                        .map_or_else(|| "N/A".to_string(), |e| e.to_string()),
                     insert_match_out.after_match_desc()
                 )?;
             }
