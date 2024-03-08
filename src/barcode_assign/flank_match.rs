@@ -124,10 +124,10 @@ impl TrimMatchSpec {
         }
     }
 
-    pub fn trim<'a>(&mut self, insert: &'a [u8]) -> (usize, &'a [u8]) {
+    pub fn trim<'a>(&mut self, insert_seq: &'a [u8], insert_qual: &'a [u8]) -> (usize, &'a [u8], &'a [u8]) {
         let left_edge = if let Some(myers) = self.left_myers.as_mut() {
             myers
-                .find_all(insert, self.max_errors)
+                .find_all(insert_seq, self.max_errors)
                 .by_ref()
                 .min_by_key(|&(start, _, score)| (score, start))
                 .map_or(0, |(_, end, _)| end)
@@ -137,18 +137,18 @@ impl TrimMatchSpec {
 
         let right_edge = if let Some(myers) = self.right_myers.as_mut() {
             myers
-                .find_all(insert, self.max_errors)
+                .find_all(insert_seq, self.max_errors)
                 .by_ref()
                 .min_by_key(|&(start, _, score)| (score, start))
-                .map_or(insert.len(), |(start, _, _)| start)
+                .map_or(insert_seq.len(), |(start, _, _)| start)
         } else {
-            insert.len()
+            insert_seq.len()
         };
 
         if left_edge < right_edge {
-            (left_edge, &insert[left_edge..right_edge])
+            (left_edge, &insert_seq[left_edge..right_edge], &insert_qual[left_edge..right_edge])
         } else {
-            (0, &insert)
+            (0, &insert_seq, &insert_qual)
         }
     }
 }

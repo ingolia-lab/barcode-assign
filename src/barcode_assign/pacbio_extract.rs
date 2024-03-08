@@ -305,14 +305,15 @@ pub fn pacbio_extract(spec: &mut LibSpec, bam_in: &mut bam::Reader) -> Result<()
                         .rev()
                         .collect::<Vec<_>>()
                 };
-                insert_spec.fastq_writer.write(
-                    &format!("{}/0_{}", read_id, insert_seq.len()),
-                    None,
-                    &insert_seq,
-                    &insert_qual,
-                )?;
 
-                let (trimmed_start, trimmed_seq) = insert_spec.trim_spec.trim(&insert_seq);
+                let (trimmed_start, trimmed_seq, trimmed_qual) = insert_spec.trim_spec.trim(&insert_seq, &insert_qual);
+                
+                insert_spec.fastq_writer.write(
+                    &format!("{}/{}_{}", read_id, trimmed_start, trimmed_seq.len()),
+                    None,
+                    &trimmed_seq,
+                    &trimmed_qual,
+                )?;
 
                 write!(
                     spec.inserts_out,
