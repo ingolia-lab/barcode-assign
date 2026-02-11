@@ -29,14 +29,14 @@ pub fn bc_umi(config: Config) -> Result<()> {
 
     let mut barcode_umis = BarcodeUmis::new();
 
-    for recres in barcode_reader.records() {
+    for (recno, recres) in barcode_reader.records().enumerate() {
         let rec = recres
-            .with_context(|| format!("Bad FastQ record"))?;
+            .with_context(|| format!("Bad FastQ record number {}", recno))?;
         let desc = rec
             .desc()
-            .ok_or_else(|| anyhow!("No header information for FastQ record {:?}", rec.id()))?;
+            .ok_or_else(|| anyhow!("No header information for FastQ record {:?} number {}", rec.id(), recno))?;
         let umi = BarcodeUmis::find_umi(&config.umi_prefix, desc)
-            .ok_or_else(|| anyhow!("No UMI in {:?} for FastQ record{:?}", desc, rec.id()))?;
+            .ok_or_else(|| anyhow!("No UMI in {:?} for FastQ record {:?} number {}", desc, rec.id(), recno))?;
         barcode_umis.count_one(rec.seq(), umi.as_bytes());
     }
 
